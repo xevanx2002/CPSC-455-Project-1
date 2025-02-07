@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "Server.js",
+  "type": "module",
   "dependencies": {
+    "http": "^0.0.1-security",
     "ws": "^8.18.0"
   },
   "scripts": {

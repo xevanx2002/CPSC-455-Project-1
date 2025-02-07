@@ -1,22 +1,38 @@
-const WebSocket = require('ws');
+import { createServer } from 'https';
+import { WebSocketServer } from 'ws';
 
-const wss = new WebSocket.Server({ port: 8080 });
+function onSocketError(err) {
+    console.error(err);
+}
 
-wss.on('connection', function
-connection(ws) {
-    console.log('Connected');
+const server = createServer();
+const wss = new WebSocketServer({ port: 8080 });
 
-    ws.on('message', function
-    incoming(message) {
-        console.log("Received: %s", message);
+wss.on('connection', function connection(ws, request, client) {
+    ws.on('error', console.error);
 
-        ws.send(`${message}`);
-
+    ws.on('message', function message(data) {
+        console.log(`Recieved message ${data} from user ${client}`);
+        ws.send(`Recieved message ${data} from user ${client}`);
     });
-   
-    ws.on('close', function() {
-        console.log('Disconnected');
-    });
+
+    
 });
 
+server.on('upgrade', function upgrade(request, socket, head) {
+    socket.on('error', onSocketError);
 
+    AuthenticatorResponse(request, function next(err, client) {
+        if (err || !client) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            socket.destory();
+            return;
+        }
+
+        socket.removeListener('error', onSocketError);
+
+        wss.handleUpgrade(request, socket, head, function done(ws) {
+            wss.emit('connection', ws, request, client);
+        });
+    });
+});
