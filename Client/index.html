@@ -19,12 +19,6 @@
 
 <body>
     <h1>WebSocket Example</h1>
-    <form action="">
-        <label>Username</label> <br><br>
-        <input type="text" id="userName">
-        <label>Password</label> <br><br>
-        <button onclick="sendCred()">Login</button>
-    </form>
     <div class="container">
         <label>Send Message to Server:</label> <br><br>
         <input type="text" id="messageInput">
@@ -39,10 +33,6 @@
     </div>
 
     <script>
-        // function sendCred() {
-        //     socket.
-        // }
-
         var socket = new WebSocket('ws://localhost:8080');
 
         // Function that allows for user to re-connect

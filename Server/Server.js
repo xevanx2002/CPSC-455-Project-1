@@ -17,16 +17,14 @@ function heartBeat() {
 
 app.use(express.static('../Client'));
 
-var client;
+wss.on('connection', function connection(ws, request) {
+    const id = "2236";
 
-wss.on('connection', function connection(ws, request, client) {
-    const ip = request.socket.remoteAddress;
+    console.log(`Session ID has been assigned: ${id}`)
 
+    console.log(`Connection Established with user ${id}`);
 
-    console.log(`Connection Established with user ${client}`);
-    console.log(`New user IP: ${ip}`);
-
-    ws.send(`${client} has connected`);
+    ws.send(`${id} has connected`);
 
     wss.connected = true;
     ws.on('pong', heartBeat);
@@ -34,13 +32,8 @@ wss.on('connection', function connection(ws, request, client) {
     ws.on('error', console.error);
 
     ws.on('message', function message(data) {
-        console.log(`${client}: ${data}`);
-        ws.send(`${client}: ${data}`);
-    });
-
-    ws.on('userName', function setClient(data, client) {
-        wss.client = data;
-        console.log(client);
+        console.log(`${id}: ${data}`);
+        ws.send(`${id}: ${data}`);
     });
 });
 
@@ -57,7 +50,7 @@ const beat = setInterval(function ping() {
 }, 30000);
 
 wss.on('close', function close () {
-    console.log(`User ${client} has disconnected`);
+    console.log(`User ${request.session.userId} has disconnected`);
     clearInterval(beat);
 });
 
@@ -67,6 +60,6 @@ httpServer.on('upgrade', function upgrade(request, socket, head) {
     socket.removeListener('error', onSocketError);
 
     wss.handleUpgrade(request, socket, head, function done(ws) {
-        wss.emit('connection', ws, request, client);
+        wss.emit('connection', ws, request);
     });
 });
