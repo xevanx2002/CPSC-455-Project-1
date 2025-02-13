@@ -33,14 +33,14 @@
     </div>
 
     <script>
-        var socket = new WebSocket('ws://localhost:8080');
+        var socket = new WebSocket('ws://127.0.0.1:8080');
 
         // Function that allows for user to re-connect
         // with Websocket after disconnect
         function joinWeb() {
             // Create a WebSocket instance
             // and connect to the server
-            socket = new WebSocket('ws://localhost:8080');
+            socket = new WebSocket('ws://127.0.0.1:8080');
 
             // Event listener for when a message
             //  is received from the server
