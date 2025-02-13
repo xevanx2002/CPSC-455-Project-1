@@ -17,10 +17,11 @@ function heartBeat() {
 
 app.use(express.static('../Client'));
 
-const client = "HelloCows";
+var client;
 
 wss.on('connection', function connection(ws, request, client) {
     const ip = request.socket.remoteAddress;
+
 
     console.log(`Connection Established with user ${client}`);
     console.log(`New user IP: ${ip}`);
@@ -33,9 +34,10 @@ wss.on('connection', function connection(ws, request, client) {
     ws.on('error', console.error);
 
     ws.on('message', function message(data) {
-        console.log(`Recieved message ${data} from user ${client}`);
-        ws.send(`Recieved message ${data} from user ${client}`);
+        console.log(`${client}: ${data}`);
+        ws.send(`${client}: ${data}`);
     });
+
     ws.on('userName', function setClient(data, client) {
         wss.client = data;
         console.log(client);

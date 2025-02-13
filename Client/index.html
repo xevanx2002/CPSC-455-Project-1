@@ -19,6 +19,12 @@
 
 <body>
     <h1>WebSocket Example</h1>
+    <form action="">
+        <label>Username</label> <br><br>
+        <input type="text" id="userName">
+        <label>Password</label> <br><br>
+        <button onclick="sendCred()">Login</button>
+    </form>
     <div class="container">
         <label>Send Message to Server:</label> <br><br>
         <input type="text" id="messageInput">
@@ -28,29 +34,37 @@
     <div>
         <button onclick="closeWeb()">Close Connection</button>
     </div>
-    <!-- <div>
+    <div>
         <button onclick="joinWeb()">Re-Connect</button>
-    </div> -->
+    </div>
 
     <script>
+        // function sendCred() {
+        //     socket.
+        // }
 
-        const socket = new WebSocket('ws://localhost:8080');
+        var socket = new WebSocket('ws://localhost:8080');
 
         // Function that allows for user to re-connect
         // with Websocket after disconnect
-        // function joinWeb() {
-        //     // Create a WebSocket instance
-        //     // and connect to the server
-        //     const socket = new WebSocket('ws://localhost:8080');
+        function joinWeb() {
+            // Create a WebSocket instance
+            // and connect to the server
+            socket = new WebSocket('ws://localhost:8080');
 
-        //     // Event listener for when 
-        //     // the WebSocket connection is opened
-        //     socket.onopen = function (event) {
-        //         // Alert the user that they are 
-        //         // connected to the WebSocket server
-        //         // alert('You are Connected to WebSocket Server');
-        //     };
-        // };
+            // Event listener for when a message
+            //  is received from the server
+            socket.onmessage = function (event) {
+                // Get the output div element
+                const outputDiv = document
+                    .getElementById('output');
+                // Append a paragraph with the
+                //  received message to the output div
+                outputDiv
+                    .innerHTML += `<p><b>${event.data}</b></p>`;
+            };
+        };
+        
         // Function to disconnect from WebSocket Server
         function closeWeb() {
             // Send message to server that user has disconnected
@@ -68,7 +82,7 @@
             // Append a paragraph with the
             //  received message to the output div
             outputDiv
-                .innerHTML += `<p>Received <b>"${event.data}"</b> from server.</p>`;
+                .innerHTML += `<p><b>${event.data}</b></p>`;
         };
 
         // Event listener for when the 
@@ -94,7 +108,6 @@
             // Clear the message input
             messageInput.value = '';
         };
-        // joinWeb();
     </script>
 </body>
 
