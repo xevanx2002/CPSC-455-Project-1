@@ -1,0 +1,105 @@
+<!-- File path: index.html (project root folder) -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Client</title>
+    <style>
+        h1 {
+            color: green;
+        }
+
+        .container {
+            margin: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Basic Implementation of Caeser Cipher</h1>
+    <div class="container">
+        <label>Send Message to Server:</label> <br><br>
+        <input type="text" id="messageInput">
+        <button onclick="sendMessage()">Send</button>
+        <div id="output"></div>
+    </div>
+    <div>
+        <button onclick="closeWeb()">Close Connection</button>
+    </div>
+    <div>
+        <button onclick="joinWeb()">Re-Connect</button>
+    </div>
+
+    <script>
+        var socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
+
+        // Function that allows for user to re-connect
+        // with Websocket after disconnect
+        function joinWeb() {
+            // Create a WebSocket instance
+            // and connect to the server
+            socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
+
+            // Event listener for when a message
+            //  is received from the server
+            socket.onmessage = function (event) {
+                // Get the output div element
+                const outputDiv = document
+                    .getElementById('output');
+                // Append a paragraph with the
+                //  received message to the output div
+                outputDiv
+                    .innerHTML += `<p><b>${event.data}</b></p>`;
+            };
+        };
+        
+        // Function to disconnect from WebSocket Server
+        function closeWeb() {
+            // Send message to server that user has disconnected
+            socket.send("User has disconnected");
+            // Function that closes the connection
+            socket.close();
+        };
+
+        // Event listener for when a message
+        //  is received from the server
+        socket.onmessage = function (event) {
+            // Get the output div element
+            const outputDiv = document
+                .getElementById('output');
+            // Append a paragraph with the
+            //  received message to the output div
+            outputDiv
+                .innerHTML += `<p><b>${event.data}</b></p>`;
+        };
+
+        // Event listener for when the 
+        // WebSocket connection is closed
+        socket.onclose = function (event) {
+            // Log a message when disconnected
+            //  from the WebSocket server
+            console.log('Disconnected from WebSocket server');
+        };
+
+        // Function to send a message
+        //  to the WebSocket server
+        function sendMessage() {
+            // Get the message input element
+            const messageInput = document
+                .getElementById('messageInput');
+            // Get the value of
+            // the message input
+            const message = messageInput.value;
+            // Send the message to 
+            // the WebSocket server
+            socket.send(message);
+            // Clear the message input
+            messageInput.value = '';
+        };
+    </script>
+</body>
+
+</html>
+

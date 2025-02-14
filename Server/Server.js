@@ -1,13 +1,65 @@
 import { WebSocketServer } from 'ws';
 import express from 'express';
-
+import session from 'express-session';
+import https from 'https';
+import fs from 'fs';
+import bodyParser from 'body-parser';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import cookieParser from 'cookie-parser';
+import { parse } from 'cookie';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const httpServer = app.listen(PORT, '0.0.0.0',() => {
-    console.log('yuh baby girl les gooooo');
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+
+const sessionMiddleware = session({
+    secret: 'mySecretKey', 
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } 
 });
-const wss = new WebSocketServer({ noServer: true });
+
+app.use(sessionMiddleware);
+app.use(cookieParser());
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, './Client')));
+
+app.post('/index', (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.json({ success: false, message: "Missing username or password" });
+    }
+
+    // Store username in session
+    req.session.username = username;
+
+    res.json({ success: true });
+});
+
+app.get('/chat', (req, res) => {
+    if (!req.session.username) {
+        return res.status(403).send("Access Denied. Please login.");
+    }
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+const options = {
+    key: fs.readFileSync('./certs/key.pem'),
+    cert: fs.readFileSync('./certs/cert.pem')
+};
+
+
+// const httpServer = app.listen(PORT, '0.0.0.0',() => {
+//     console.log('yuh baby girl les gooooo');
+// });
+const httpsServer = https.createServer(options, app);
+const wss = new WebSocketServer({ noServer: true});
 
 const clients = new Set();
 
@@ -22,30 +74,29 @@ function heartBeat() {
 
 app.use(express.static('./Client'));
 
-wss.on('connection', function connection(ws, request) {
-    console.log("New homie on board");
+wss.on('connection', (ws, request) => {
+    console.log(`New homie on board: ${request.session.username}`);
     clients.add(ws);
 
-    // console.log(`Session ID has been assigned: ${id}`)
-
-    console.log(`Connection Established with user `);
-
-    // ws.send(`${id} has connected`);
-
     ws.connected = true;
-    ws.on('pong', heartBeat);
-
+    ws.on('pong', () => { ws.connected = true; });
     ws.on('error', console.error);
 
     ws.on('message', (message) => {
-        console.log(`Received: ${message}`);
+        console.log(`${request.session.username}: ${message}`);
 
+        // ✅ Broadcast messages with username
         for (const client of clients) {
-            if (client !== ws && client.readyState === ws.OPEN) {
-                client.send(`${message}`);
-                ws.send(`${message}`);
+            if (client.readyState === ws.OPEN) {
+                client.send(`${request.session.username}: ${message}`);
             }
         }
+    });
+
+    ws.on('close', () => {
+        console.log(`${request.session.username} disconnected`);
+        clients.delete(ws);
+        clearInterval(beat);
     });
 });
 
@@ -61,18 +112,34 @@ const beat = setInterval(function ping() {
     });
 }, 30000);
 
-wss.on('close', function close () {
-    console.log(`User has disconnected`);
-    clients.delete(ws);
-    clearInterval(beat);
+
+
+httpsServer.listen(PORT, '0.0.0.0', () => {
+    console.log('Secure WebSocket Server running on **********');
 });
 
-httpServer.on('upgrade', function upgrade(request, socket, head) {
-    socket.on('error', onSocketError);
+httpsServer.on('upgrade', function upgrade(request, socket, head) {
+    const urlParams = new URLSearchParams(request.url.split('?')[1]);
+    const token = urlParams.get('token');
 
-    // socket.removeListener('error', onSocketError);
+    if (token !== 'mysecrettoken') {  
+        console.log("Unauthorized WebSocket connection attempt");
+        socket.destroy();
+        return;
+    }
 
-    wss.handleUpgrade(request, socket, head, function done(ws) {
-        wss.emit('connection', ws, request);
+    const cookies = parse(request.headers.cookie || '');
+    const sessionID = cookies['connect.sid'];
+
+    sessionMiddleware(request, {}, () => {
+        if (!request.session.username) {
+            console.log("Unauthorized WebSocket request - No username in session");
+            socket.destroy();
+            return;
+        }
+
+        wss.handleUpgrade(request, socket, head, function done(ws) {
+            wss.emit('connection', ws, request);
+        });
     });
 });

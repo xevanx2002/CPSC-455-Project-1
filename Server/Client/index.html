@@ -1,105 +1,51 @@
-<!-- File path: index.html (project root folder) -->
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Client</title>
-    <style>
-        h1 {
-            color: green;
-        }
-
-        .container {
-            margin: 10px;
-        }
-    </style>
-</head>
-
-<body>
-    <h1>WebSocket Example</h1>
-    <div class="container">
-        <label>Send Message to Server:</label> <br><br>
-        <input type="text" id="messageInput">
-        <button onclick="sendMessage()">Send</button>
-        <div id="output"></div>
-    </div>
-    <div>
-        <button onclick="closeWeb()">Close Connection</button>
-    </div>
-    <div>
-        <button onclick="joinWeb()">Re-Connect</button>
-    </div>
-
+    <title>Login</title>
     <script>
-        var socket = new WebSocket('ws://127.0.0.1:8080');
+        async function login(event) {
+            event.preventDefault(); 
 
-        // Function that allows for user to re-connect
-        // with Websocket after disconnect
-        function joinWeb() {
-            // Create a WebSocket instance
-            // and connect to the server
-            socket = new WebSocket('ws://127.0.0.1:8080');
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
 
-            // Event listener for when a message
-            //  is received from the server
-            socket.onmessage = function (event) {
-                // Get the output div element
-                const outputDiv = document
-                    .getElementById('output');
-                // Append a paragraph with the
-                //  received message to the output div
-                outputDiv
-                    .innerHTML += `<p><b>${event.data}</b></p>`;
-            };
-        };
-        
-        // Function to disconnect from WebSocket Server
-        function closeWeb() {
-            // Send message to server that user has disconnected
-            socket.send("User has disconnected");
-            // Function that closes the connection
-            socket.close();
-        };
+            if (!username || !password) {
+                alert("Please fill out all fields.");
+                return;
+            }
 
-        // Event listener for when a message
-        //  is received from the server
-        socket.onmessage = function (event) {
-            // Get the output div element
-            const outputDiv = document
-                .getElementById('output');
-            // Append a paragraph with the
-            //  received message to the output div
-            outputDiv
-                .innerHTML += `<p><b>${event.data}</b></p>`;
-        };
+            const response = await fetch('/index', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
 
-        // Event listener for when the 
-        // WebSocket connection is closed
-        socket.onclose = function (event) {
-            // Log a message when disconnected
-            //  from the WebSocket server
-            console.log('Disconnected from WebSocket server');
-        };
+            if (!response.ok) {
+                alert("Server error or invalid response.");
+                return;
+            }
 
-        // Function to send a message
-        //  to the WebSocket server
-        function sendMessage() {
-            // Get the message input element
-            const messageInput = document
-                .getElementById('messageInput');
-            // Get the value of
-            // the message input
-            const message = messageInput.value;
-            // Send the message to 
-            // the WebSocket server
-            socket.send(message);
-            // Clear the message input
-            messageInput.value = '';
-        };
+            const data = await response.json();
+            if (data.success) {
+                window.location.href = "chat.html"; 
+            } else {
+                alert(data.message);
+            }
+        }
     </script>
+</head>
+<body>
+    <h2>Login</h2>
+    <form onsubmit="login(event)">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+        <br><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+        <br><br>
+        <button type="submit">Login</button>
+    </form>
 </body>
-
 </html>
-
