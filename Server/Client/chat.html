@@ -10,7 +10,6 @@
         h1 {
             color: green;
         }
-
         .container {
             margin: 10px;
         }
@@ -22,7 +21,7 @@
     <div class="container">
         <label>Send Message to Server:</label> <br><br>
         <input type="text" id="messageInput">
-        <button onclick="sendMessage()">Send</button>
+        <button id="sendMess" onclick="sendMessage()">Send</button>
         <div id="output"></div>
     </div>
     <div>
@@ -34,24 +33,20 @@
 
     <script>
         var socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
-
         // Function that allows for user to re-connect
         // with Websocket after disconnect
         function joinWeb() {
             // Create a WebSocket instance
             // and connect to the server
             socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
-
             // Event listener for when a message
             //  is received from the server
             socket.onmessage = function (event) {
                 // Get the output div element
-                const outputDiv = document
-                    .getElementById('output');
+                const outputDiv = document.getElementById('output');
                 // Append a paragraph with the
                 //  received message to the output div
-                outputDiv
-                    .innerHTML += `<p><b>${event.data}</b></p>`;
+                outputDiv.innerHTML += `<p><b>${event.data}</b></p>`;
             };
         };
         
@@ -71,8 +66,7 @@
                 .getElementById('output');
             // Append a paragraph with the
             //  received message to the output div
-            outputDiv
-                .innerHTML += `<p><b>${event.data}</b></p>`;
+            outputDiv.innerHTML += `<p><b>${event.data}</b></p>`;
         };
 
         // Event listener for when the 
@@ -87,8 +81,7 @@
         //  to the WebSocket server
         function sendMessage() {
             // Get the message input element
-            const messageInput = document
-                .getElementById('messageInput');
+            const messageInput = document.getElementById('messageInput');
             // Get the value of
             // the message input
             const message = messageInput.value;
