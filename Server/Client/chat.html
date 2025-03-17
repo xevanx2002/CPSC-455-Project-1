@@ -30,6 +30,14 @@
     <div>
         <button onclick="joinWeb()">Re-Connect</button>
     </div>
+    <div>
+        <input type="file" id="gotFile" accept=".doc, .docx, .xml, application/msword,
+            application/openxmlformats-officedocument.wordprocessingml.document, .pdf,
+            .rar, .zip" />
+    </div>
+    <div>
+        <button onclick="sendFile()">Send File</button>
+    </div>
 
     <script>
         var socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
@@ -90,6 +98,12 @@
             socket.send(message);
             // Clear the message input
             messageInput.value = '';
+        };
+
+        function sendFile() {
+            const input = document.getElementById('gotFile');
+            console.log(input);
+            socket.sendFile(input);
         };
     </script>
 </body>
