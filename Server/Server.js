@@ -210,7 +210,6 @@ wss.on('connection', (ws, request) => {
     ws.on('error', console.error);
     ws.on('message', (newData) => {
         console.log("This is Working");       
-
         const str = newData.toString('utf8');
 
         // Checking to see if recieved data is a json object before processing information
@@ -227,10 +226,11 @@ wss.on('connection', (ws, request) => {
             console.log("Is an object");
         };
         console.log(jsonCheck);
-        
+        // Runs the file saving and sending portion of the program based on if obtained data is a JSON object
         if(!jsonCheck && Buffer.isBuffer(newData)) {
             console.log("File stuff happening");
             const metadata = dataMap.get(ws);
+            // Verify that metadata was sent before continuing to share the file
             if (!metadata) {
                 console.log("No metadata");
                 return;
@@ -238,19 +238,19 @@ wss.on('connection', (ws, request) => {
             
             console.log("Metadata recieved");
             const filePath = path.join(__dirname, 'uploads', `${metadata.fileName}`);
-
+            const newFileName = metadata.fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_');
             fs.writeFileSync(filePath, newData);
             console.log(`File Recieved and Saved: ${filePath}`);
             // The complete URL to download the uploaded files from the server
-            const fileURL = `${IPAddress}uploads/${metadata.fileName}`;
+            const fileURL = `${IPAddress}uploads/${newFileName}`;
             const fileData = {
                 type: 'file',
-                fileName: metadata.fileName,
+                fileName: newFileName,
                 sender: request.session.username,
                 url: fileURL,
                 date: metadata.date
             };
-
+            // Post the file with download link to chat and attach to the chatlog
             for (const client of clients) {
                 if(client.readyState === ws.OPEN) {
                     ws.send(JSON.stringify(fileData));
@@ -261,6 +261,7 @@ wss.on('connection', (ws, request) => {
                     updateLog(compiledMess, chatlogFile);
                 }
             };
+            // Clear the maped data for when next file gets shared
             dataMap.delete(ws);
         }
         else {
