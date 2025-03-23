@@ -9,6 +9,7 @@ import express from 'express';
 import https from 'https';
 import path from 'path';
 import fs from 'fs';
+import pool from './DB.js';
 import updateLog from './src/chatLog.js';
 
 const app = express();
@@ -58,6 +59,97 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, './client')));
 app.use(express.static('./client'));
 app.use(limiter);
+
+
+app.post('/signup', async (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+        return res.status(400).json({ success: false, message: "Missing username or password" });
+    }
+    
+    try {
+        // Hash values using your custom function
+        const hashedUsername = hashFun(username, false); // false for non-password data
+        const hashedPassword = hashFun(password, true);  // true for password
+        
+        // Check if the username already exists in the `users` table
+        const [existingUsers] = await pool.query('SELECT * FROM users WHERE username = ?', [hashedUsername]);
+        if (existingUsers.length > 0) {
+            return res.status(400).json({ success: false, message: "Username already exists" });
+        }
+        
+        // Insert into `users` table (only storing the hashed username)
+        const [userResult] = await pool.query('INSERT INTO users (username) VALUES (?)', [hashedUsername]);
+        if (!userResult.insertId) {
+            return res.status(500).json({ success: false, message: "Signup failed at user insertion" });
+        }
+        
+        // Get the new user's ID
+        const userId = userResult.insertId;
+        
+        // Insert into `auth` table the password along with the foreign key (userId)
+        const [authResult] = await pool.query('INSERT INTO auth (userId, password) VALUES (?, ?)', [userId, hashedPassword]);
+        if (authResult.affectedRows === 1) {
+            return res.json({ success: true, message: "Signup successful. Please log in." });
+        } else {
+            return res.status(500).json({ success: false, message: "Signup failed at auth insertion" });
+        }
+    } catch (err) {
+        console.error("Signup error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
+
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+        console.log("DHHHHHHHHH");
+        return res.status(400).json({ success: false, message: "Missing username or password" });
+    }
+    
+    try {
+        // Hash the provided username and password
+        const hashedUsername = hashFun(username, false);
+        const hashedPassword = hashFun(password, true);
+        console.log(hashedUsername);
+        console.log(hashedPassword);
+        
+        // Retrieve the user record from the `users` table
+        const [users] = await pool.query('SELECT * FROM users WHERE username = ?', [hashedUsername]);
+        if (users.length === 0) {
+            console.log("CHHHHHHHHH");
+            return res.status(401).json({ success: false, message: "Invalid username or password" });
+        }
+        const user = users[0];
+        
+        // Retrieve the authentication record from the `auth` table using the user's id
+        const [authRecords] = await pool.query('SELECT * FROM auth WHERE userId = ?', [user.userId]);
+        if (authRecords.length === 0) {
+            console.log("BHHHHH");
+            return res.status(401).json({ success: false, message: "Invalid username or password" });
+        }
+        const authRecord = authRecords[0];
+        
+        // Compare the hashed passwords
+        if (hashedPassword !== authRecord.password) {
+            console.log("AHHHHHH");
+            return res.status(401).json({ success: false, message: "Invalid username or password" });
+        }
+        
+        // Optionally, set session data on successful login
+        req.session.username = hashedUsername;
+        req.session.userId = user.id;
+        return res.json({ success: true, message: "Login successful" });
+    } catch (err) {
+        console.error("Login error:", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
+
+
+
 
 app.post('/index', (req, res) => {
     const { username, password } = req.body;
@@ -157,3 +249,17 @@ httpsServer.on('upgrade', function upgrade(request, socket, head) {
 httpsServer.listen(PORT, '0.0.0.0', () => {
     console.log('Secure WebSocket Server running on **********');
 });
+
+async function getUserByUsername(username) {
+    const [rows] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
+    return rows;
+
+}
+
+getUserByUsername('admin')
+    .then(rows => {
+        console.log(rows);
+    })
+    .catch(err => {
+        console.error(err);
+    });
