@@ -1,52 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <script>
-        async function login(event) {
-            event.preventDefault(); 
-
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-
-            if (!username || !password) {
-                alert("Please fill out all fields.");
-                return;
-            } 
-
-            const response = await fetch('/index', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            if (!response.ok) {
-                alert("Server error or invalid response.");
-                return;
-            }
-
-            const data = await response.json();
-            if (data.success) {
-                window.location.href = "chat.html"; 
-            } else {
-                alert(data.message);
-            }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login / Signup</title>
+  <style>
+    .hidden { display: none; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    form {
+      max-width: 300px;
+      margin: 20px 0;
+    }
+  </style>
+  <script>
+    async function login(event) {
+      event.preventDefault();
+      
+      const username = document.getElementById('login-username').value;
+      const password = document.getElementById('login-password').value;
+      
+      if (!username || !password) {
+        alert("Please fill out all fields for login.");
+        return;
+      }
+      
+      try {
+        const response = await fetch('/login', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        if (!response.ok) {
+          alert("Server error or invalid response during login.");
+          return;
         }
-    </script>
+        
+        const data = await response.json();
+        if (data.success) {
+          window.location.href = "chat.html"; 
+        } else {
+          alert(data.message || "Login failed.");
+        }
+      } catch (error) {
+        console.error("Error during login:", error);
+        alert("An error occurred. Please try again.");
+      }
+    }
+    
+    async function signup(event) {
+      event.preventDefault();
+      
+      const username = document.getElementById('signup-username').value;
+      const password = document.getElementById('signup-password').value;
+      const confirmPassword = document.getElementById('signup-confirm-password').value;
+      
+      if (!username || !password || !confirmPassword) {
+        alert("Please fill out all fields for signup.");
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        alert("Passwords do not match.");
+        return;
+      }
+      
+      try {
+        const response = await fetch('/signup', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        if (!response.ok) {
+          alert("Server error or invalid response during signup.");
+          return;
+        }
+        
+        const data = await response.json();
+        if (data.success) {
+          alert("Signup successful! Please log in.");
+          switchToLogin();
+        } else {
+          alert(data.message || "Signup failed.");
+        }
+      } catch (error) {
+        console.error("Error during signup:", error);
+        alert("An error occurred. Please try again.");
+      }
+    }
+    
+    function switchToSignup() {
+      document.getElementById('login-form').classList.add('hidden');
+      document.getElementById('signup-form').classList.remove('hidden');
+    }
+    
+    function switchToLogin() {
+      document.getElementById('signup-form').classList.add('hidden');
+      document.getElementById('login-form').classList.remove('hidden');
+    }
+  </script>
 </head>
 <body>
+  <!-- Login Form -->
+  <div id="login-form">
     <h2>Login</h2>
     <form onsubmit="login(event)">
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required>
-        <br><br>
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required>
-        <br><br>
-        <button type="submit">Login</button>
+      <label for="login-username">Username:</label><br>
+      <input type="text" id="login-username" name="username" required><br><br>
+      
+      <label for="login-password">Password:</label><br>
+      <input type="password" id="login-password" name="password" required><br><br>
+      
+      <button type="submit">Login</button>
     </form>
+    <p>
+      Don't have an account? 
+      <a href="#" onclick="switchToSignup()">Sign Up</a>
+    </p>
+  </div>
+
+  <!-- Signup Form -->
+  <div id="signup-form" class="hidden">
+    <h2>Sign Up</h2>
+    <form onsubmit="signup(event)">
+      <label for="signup-username">Username:</label><br>
+      <input type="text" id="signup-username" name="username" required><br><br>
+      
+      <label for="signup-password">Password:</label><br>
+      <input type="password" id="signup-password" name="password" required><br><br>
+      
+      <label for="signup-confirm-password">Confirm Password:</label><br>
+      <input type="password" id="signup-confirm-password" name="confirmPassword" required><br><br>
+      
+      <button type="submit">Sign Up</button>
+    </form>
+    <p>
+      Already have an account? 
+      <a href="#" onclick="switchToLogin()">Login</a>
+    </p>
+  </div>
 </body>
 </html>

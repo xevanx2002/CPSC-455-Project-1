@@ -40,13 +40,13 @@
     </div>
 
     <script>
-        const socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
+        var socket = new WebSocket('wss://192.168.56.1:8080?token=mysecrettoken');
         // Function that allows for user to re-connect
         // with Websocket after disconnect
         function joinWeb() {
             // Create a WebSocket instance
             // and connect to the server
-            socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
+            socket = new WebSocket('wss://192.168.56.1:8080?token=mysecrettoken');
             // Event listener for when a message
             //  is received from the server
             socket.onmessage = function (event) {
