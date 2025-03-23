@@ -15,6 +15,8 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const uploadDir = path.join(__dirname, 'uploads');
+const IPAddress = 'https://127.0.0.1:8080/';
 
 const options = {
     key: fs.readFileSync('./certs/key.pem'),
@@ -31,10 +33,14 @@ const limiter = rateLimit({
     max: 100,
     message: 'Too many messages, You are on timeout'
 });
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+};
 
 const httpsServer = https.createServer(options, app);
 const wss = new WebSocketServer({ noServer: true});
 const clients = new Set();
+let dataMap = new Map();
 
 function onSocketError(err) {
     console.error(err);
@@ -57,6 +63,7 @@ app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, './client')));
 app.use(express.static('./client'));
+app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
 
 app.post('/index', (req, res) => {
@@ -98,7 +105,10 @@ wss.on('connection', (ws, request) => {
         if (client.readyState === ws.OPEN) {
             const allFileContents = fs.readFileSync('./chatlogs/chatlog.txt', 'utf-8');
             allFileContents.split(/\r?\n/).forEach(line => {
-                client.send(line);
+                client.send(JSON.stringify({
+                    type: 'logs',
+                    text: line
+                }));
             });
             console.log("Pulled Chat Log"); 
         };
@@ -106,25 +116,101 @@ wss.on('connection', (ws, request) => {
 
     ws.on('pong', () => { ws.connected = true; });
     ws.on('error', console.error);
-    ws.on('message', (message) => {
-        console.log(`${request.session.username}: ${message}`);
+    ws.on('message', (newData) => {
+        console.log("This is Working");       
 
-        for (const client of clients) {
-            if (client.readyState === ws.OPEN) {
-                client.send(`${request.session.username}: ${message}`);
-                const compiledMess = `${request.session.username}: ${message}`;
-                console.log("Saving Compiled Message");
-                const chatlogFile = './chatlogs/chatlog.txt';
-                updateLog(compiledMess, chatlogFile);
-                console.log("Updated Text File"); 
+        const str = newData.toString('utf8');
+
+        // Checking to see if recieved data is a json object before processing information
+        let jsonCheck = false;
+        try {
+            const parsed = JSON.parse(str);
+            jsonCheck = true;
+            // If the returned data type is st to file, prepare the metadata to be captured
+            if (parsed.type === 'file') {
+                dataMap.set(ws, parsed);
+            };
+        } catch (err) {
+            
+            console.log("Is an object");
+        };
+        console.log(jsonCheck);
+        
+        if(!jsonCheck && Buffer.isBuffer(newData)) {
+            console.log("File stuff happening");
+            const metadata = dataMap.get(ws);
+            if (!metadata) {
+                console.log("No metadata");
+                return;
+            };
+            
+            console.log("Metadata recieved");
+            const filePath = path.join(__dirname, 'uploads', `${metadata.fileName}`);
+
+            fs.writeFileSync(filePath, newData);
+            console.log(`File Recieved and Saved: ${filePath}`);
+            // The complete URL to download the uploaded files from the server
+            const fileURL = `${IPAddress}uploads/${metadata.fileName}`;
+            const fileData = {
+                type: 'file',
+                fileName: metadata.fileName,
+                sender: request.session.username,
+                url: fileURL,
+                date: metadata.date
+            };
+
+            for (const client of clients) {
+                if(client.readyState === ws.OPEN) {
+                    ws.send(JSON.stringify(fileData));
+                    console.log("Sharing File");
+                    const compiledMess = `(${fileData.date}) ${request.session.username}:  <a href="${fileURL}" downloads="${fileData.fileName}" targets="_blank">${fileData.fileName}</a>`;
+                    const chatlogFile = './chatlogs/chatlog.txt';
+                    // Adds the necessary files to the chatLog so a history is kept of the information
+                    updateLog(compiledMess, chatlogFile);
+                }
+            };
+            dataMap.delete(ws);
+        }
+        else {
+            try {
+                const sentData = JSON.parse(newData);
+                console.log("Message stuff happening");
+
+                if (sentData.type === 'message') {
+                    console.log(`Time:${sentData.date} User:${request.session.username}: ${sentData.data}`);
+
+                    for (const client of clients) {
+                        if (client.readyState === ws.OPEN) {
+                            client.send(JSON.stringify({
+                                type: 'message',
+                                sender: request.session.username,
+                                date: sentData.date,
+                                data: sentData.data
+                            }));
+                            console.log(sentData.data);
+                            const compiledMess = `(${sentData.date}) ${request.session.username}:  ${sentData.data}`;
+                            const chatlogFile = './chatlogs/chatlog.txt';
+                            updateLog(compiledMess, chatlogFile);
+                            console.log("Updated Text File"); 
+                        }
+                    }
+                }
+                else if (sentData.type === 'file') {
+                    dataMap.set(ws, sentData);
+                };
+            } catch (err) {
+                console.log("JSON type error");
             }
         }
+        
     });
-    // Need to implement this completely and look into FTP for the file transfer process
-    ws.on('sendFile', (fileInput) => {
-        console.log("Sending Files");
-        console.log(fileInput);
-    });
+    ws.on('send_file', async (data, cb) => {
+        if (data.type == 'file') {
+            console.log("Binary recieved");
+            cb("File recieved successfully");
+        }
+        ws.send(data);
+    })
     ws.on('close', () => {
         console.log(`${request.session.username} disconnected`);
         clients.delete(ws);

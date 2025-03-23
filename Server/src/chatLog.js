@@ -1,7 +1,7 @@
 import fs from 'fs';
 
 function updateLog(text, chatFile) {
-    console.log("Saving to file");
+    console.log(`Saving to file: ${text}`);
     text += '\n';
 
     fs.appendFile(chatFile, text, (err) => {

@@ -33,14 +33,14 @@
     <div>
         <input type="file" id="gotFile" accept=".doc, .docx, .xml, application/msword,
             application/openxmlformats-officedocument.wordprocessingml.document, .pdf,
-            .rar, .zip" />
+            .rar, .zip, .txt" />
     </div>
     <div>
         <button onclick="sendFile()">Send File</button>
     </div>
 
     <script>
-        var socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
+        const socket = new WebSocket('wss://127.0.0.1:8080?token=mysecrettoken');
         // Function that allows for user to re-connect
         // with Websocket after disconnect
         function joinWeb() {
@@ -69,12 +69,29 @@
         // Event listener for when a message
         //  is received from the server
         socket.onmessage = function (event) {
-            // Get the output div element
-            const outputDiv = document
-                .getElementById('output');
-            // Append a paragraph with the
-            //  received message to the output div
-            outputDiv.innerHTML += `<p><b>${event.data}</b></p>`;
+            const data = JSON.parse(event.data);
+            console.log(`Recieved data type is: ${data.type}`);
+
+            if (data.type === 'message') {
+                console.log(`Message: ${data.data}`);
+                // Get the output div element
+                const outputDiv = document.getElementById('output');
+                // Append a paragraph with the
+                //  received message to the output div
+                outputDiv.innerHTML += `<p><b>(${data.date}) ${data.sender}:  ${data.data}</b></p>`;
+            }
+            else if (data.type === 'file') {
+                console.log("File Recieved");
+                console.log(data.url);
+                const outputDiv = document.getElementById('output');
+                outputDiv.innerHTML += `<p><b>(${data.date}) ${data.sender}:  <a href="${data.url}" downloads="${data.fileName}" targets="_blank">${data.fileName}</a></b></p>`;
+            }
+            else if (data.type === 'logs') {
+                const outputDiv = document.getElementById('output');
+                // Append a paragraph with the
+                //  received message to the output div
+                outputDiv.innerHTML += `<p><b>${data.text}</b></p>`;
+            }
         };
 
         // Event listener for when the 
@@ -89,21 +106,51 @@
         //  to the WebSocket server
         function sendMessage() {
             // Get the message input element
+            var newDate = new Date().toLocaleString();
+
+            console.log(newDate);
             const messageInput = document.getElementById('messageInput');
             // Get the value of
             // the message input
-            const message = messageInput.value;
+            const sendData = {
+                type: 'message',
+                data: messageInput.value,
+                date: newDate, 
+            };
             // Send the message to 
             // the WebSocket server
-            socket.send(message);
+            socket.send(JSON.stringify(sendData));
             // Clear the message input
             messageInput.value = '';
         };
 
         function sendFile() {
             const input = document.getElementById('gotFile');
-            console.log(input);
-            socket.sendFile(input);
+            const file = input.files[0];
+            
+            if (!file) {
+                alert("No file selected");
+                return;
+            }
+
+            const reader = new FileReader();
+            var newDate = new Date().toLocaleString();
+            reader.onload = (event) => {
+                const arrayBuffer = event.target.result;
+                const sendData = {
+                    type: 'file',
+                    fileName: file.name,
+                    fileType: file.type,
+                    date: newDate
+                };
+
+               socket.send(JSON.stringify(sendData));
+               console.log("File data sent to server");
+
+               socket.send(arrayBuffer);
+               console.log("File Binary sent to server");
+            }
+            reader.readAsArrayBuffer(file);
         };
     </script>
 </body>

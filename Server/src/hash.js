@@ -3,7 +3,7 @@ import sha256 from "js-sha256";
 
 function hashFun(preHash, passCheck) {
     let temp = preHash;
-    const saltNoPass = 'WouldYouSayThisIsABasicCeaserCypher';
+    const saltNoPass = 'WouldYouSayThisIsABasicCaesarCipher';
     const saltPass = 'InMyProfessionalOpinion';
     
     console.log(temp);
