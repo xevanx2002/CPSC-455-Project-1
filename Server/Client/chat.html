@@ -1,161 +1,128 @@
-<!-- File path: index.html (project root folder) -->
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Client</title>
-    <style>
-        h1 {
-            color: green;
-        }
-        .container {
-            margin: 10px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basic Implementation of Caesar Cipher</title>
+  <!-- Make sure this references your updated Discord-like CSS -->
+  <link rel="stylesheet" href="styles2.css">
 </head>
-
 <body>
-    <h1>Basic Implementation of Caeser Cipher</h1>
-    <div class="container">
-        <label>Send Message to Server:</label> <br><br>
-        <input type="text" id="messageInput">
-        <button id="sendMess" onclick="sendMessage()">Send</button>
-        <div id="output"></div>
-    </div>
-    <div>
+  <div class="chat-container">
+    <header>
+      <h1>Basic Implementation of Caesar Cipher</h1>
+    </header>
+    <main id="output">
+      <!-- Chat messages will appear here -->
+    </main>
+    <!-- Use a div instead of footer so .chat-input-area styles apply -->
+    <div class="chat-input-area">
+      <input type="text" id="messageInput" placeholder="Type your message...">
+      <button id="sendMess" onclick="sendMessage()">Send</button>
+
+      <input type="file" id="gotFile"
+             accept=".doc, .docx, .xml, application/msword,
+                     application/openxmlformats-officedocument.wordprocessingml.document,
+                     .pdf, .rar, .zip, .txt">
+      <button onclick="sendFile()">Send File</button>
+
+      <div class="chat-controls">
         <button onclick="closeWeb()">Close Connection</button>
-    </div>
-    <div>
         <button onclick="joinWeb()">Re-Connect</button>
+      </div>
     </div>
-    <div>
-        <input type="file" id="gotFile" accept=".doc, .docx, .xml, application/msword,
-            application/openxmlformats-officedocument.wordprocessingml.document, .pdf,
-            .rar, .zip, .txt" />
-    </div>
-    <div>
-        <button onclick="sendFile()">Send File</button>
-    </div>
+  </div>
 
-    <script>
-        var socket = new WebSocket('wss://192.168.56.1:8080?token=mysecrettoken');
-        // Function that allows for user to re-connect
-        // with Websocket after disconnect
-        function joinWeb() {
-            // Create a WebSocket instance
-            // and connect to the server
-            socket = new WebSocket('wss://192.168.56.1:8080?token=mysecrettoken');
-            // Event listener for when a message
-            //  is received from the server
-            socket.onmessage = function (event) {
-                // Get the output div element
-                const outputDiv = document.getElementById('output');
-                // Append a paragraph with the
-                //  received message to the output div
-                outputDiv.innerHTML += `<p><b>${event.data}</b></p>`;
-            };
+  <script>
+    // --- WebSocket & Chat Logic ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room');
+    var socket = new WebSocket(`wss://192.168.56.1:8080?token=mysecrettoken&room=${roomId}`);
+
+    function joinWeb() {
+      socket = new WebSocket(`wss://192.168.56.1:8080?token=mysecrettoken&room=${roomId}`);
+      socket.onmessage = function(event) {
+        displayMessage(event);
+      };
+    }
+    
+    function closeWeb() {
+      socket.send("User has disconnected");
+      socket.close();
+    }
+    
+    socket.onmessage = function(event) {
+      displayMessage(event);
+    };
+
+    function displayMessage(event) {
+      const data = JSON.parse(event.data);
+      console.log(`Received data type is: ${data.type}`);
+      const outputDiv = document.getElementById('output');
+
+      if (data.type === 'message') {
+        let newOut = displaySani(data.data);
+        outputDiv.innerHTML += `
+          <p class="message">
+            <span class="meta">(${data.date}) ${data.sender}:</span> ${newOut}
+          </p>`;
+      } else if (data.type === 'file') {
+        outputDiv.innerHTML += `
+          <p class="message">
+            <span class="meta">(${data.date}) ${data.sender}:</span>
+            <a href="${data.url}" download="${data.fileName}" target="_blank">${data.fileName}</a>
+          </p>`;
+      } else if (data.type === 'logs') {
+        outputDiv.innerHTML += `<p class="log">${data.text}</p>`;
+      }
+      // Auto-scroll to the bottom
+      outputDiv.scrollTop = outputDiv.scrollHeight;
+    }
+    
+    function sendMessage() {
+      const newDate = new Date().toLocaleString();
+      const messageInput = document.getElementById('messageInput');
+      const sendData = {
+        type: 'message',
+        data: messageInput.value,
+        date: newDate
+      };
+      socket.send(JSON.stringify(sendData));
+      messageInput.value = '';
+    }
+    
+    function sendFile() {
+      const input = document.getElementById('gotFile');
+      const file = input.files[0];
+      if (!file) {
+        alert("No file selected");
+        return;
+      }
+      const reader = new FileReader();
+      const newDate = new Date().toLocaleString();
+      reader.onload = (event) => {
+        const arrayBuffer = event.target.result;
+        const safeFileName = displaySani(file.name);
+        const sendData = {
+          type: 'file',
+          fileName: safeFileName,
+          fileType: file.type,
+          date: newDate
         };
-        
-        // Function to disconnect from WebSocket Server
-        function closeWeb() {
-            // Send message to server that user has disconnected
-            socket.send("User has disconnected");
-            // Function that closes the connection
-            socket.close();
-        };
-
-        // Event listener for when a message is received from the server
-        socket.onmessage = function (event) {
-            const data = JSON.parse(event.data);
-            console.log(`Recieved data type is: ${data.type}`);
-
-            if (data.type === 'message') {
-                console.log(`Message: ${data.data}`);
-                // Get the output div element
-                const outputDiv = document.getElementById('output');
-                let newOut = displaySani(data.data);
-                // Append a paragraph with the received message to the output div
-                outputDiv.innerHTML += `<p><b>(${data.date}) ${data.sender}:  ${newOut}</b></p>`;
-            }
-            else if (data.type === 'file') {
-                console.log("File Recieved");
-                console.log(data.url);
-                const outputDiv = document.getElementById('output');
-                outputDiv.innerHTML += `<p><b>(${data.date}) ${data.sender}:  <a href="${data.url}" downloads="${data.fileName}" targets="_blank">${data.fileName}</a></b></p>`;
-            }
-            else if (data.type === 'logs') {
-                const outputDiv = document.getElementById('output');
-                // Append a paragraph with the
-                //  received message to the output div
-                outputDiv.innerHTML += `<p><b>${data.text}</b></p>`;
-            }
-        };
-
-        // Event listener for when the 
-        // WebSocket connection is closed
-        socket.onclose = function (event) {
-            // Log a message when disconnected
-            //  from the WebSocket server
-            console.log('Disconnected from WebSocket server');
-        };
-
-        // Function to send a message
-        //  to the WebSocket server
-        function sendMessage() {
-            // Get the message input element
-            var newDate = new Date().toLocaleString();
-
-            console.log(newDate);
-            const messageInput = document.getElementById('messageInput');
-            // Get the value of the message input
-            const sendData = {
-                type: 'message',
-                data: messageInput.value,
-                date: newDate, 
-            };
-            // Send the message to the WebSocket server
-            socket.send(JSON.stringify(sendData));
-            // Clear the message input
-            messageInput.value = '';
-        };
-
-        function sendFile() {
-            const input = displaySani(document.getElementById('gotFile'));
-            const file = input.files[0];
-            
-            if (!file) {
-                alert("No file selected");
-                return;
-            }
-
-            const reader = new FileReader();
-            var newDate = new Date().toLocaleString();
-            reader.onload = (event) => {
-                const arrayBuffer = event.target.result;
-                const sendData = {
-                    type: 'file',
-                    fileName: file.name,
-                    fileType: file.type,
-                    date: newDate
-                };
-
-               socket.send(JSON.stringify(sendData));
-               console.log("File data sent to server");
-
-               socket.send(arrayBuffer);
-               console.log("File Binary sent to server");
-            }
-            reader.readAsArrayBuffer(file);
-        };
-
-        function displaySani(input) {
-            return input.replace(/&/g, "&amp;").replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-        };
-    </script>
+        socket.send(JSON.stringify(sendData));
+        socket.send(arrayBuffer);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    
+    function displaySani(input) {
+      return input
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
 </body>
-
 </html>
-

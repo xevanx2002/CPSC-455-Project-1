@@ -10,7 +10,7 @@ import https from 'https';
 import path from 'path';
 import fs from 'fs';
 import pool from './DB.js';
-import updateLog from './src/chatLog.js';
+import crypto from 'crypto';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -23,34 +23,39 @@ const options = {
     key: fs.readFileSync('./certs/key.pem'),
     cert: fs.readFileSync('./certs/cert.pem')
 };
+
 const sessionMiddleware = session({
     secret: 'mySecretKey', 
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false } 
+    cookie: { secure: false }
 });
+
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
     message: 'Too many messages, You are on timeout'
 });
+
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
-};
+}
 
 const httpsServer = https.createServer(options, app);
-const wss = new WebSocketServer({ noServer: true});
+const wss = new WebSocketServer({ noServer: true });
 const clients = new Set();
+const rooms = new Map(); // In-memory map for active rooms
+
 let dataMap = new Map();
 
 function onSocketError(err) {
     console.error(err);
-};
+}
 
 const beat = setInterval(function ping() {
     wss.clients.forEach(function each(ws) {
         console.log(`Heart is still beating`);
-        if(ws.connected === false) {
+        if (ws.connected === false) {
             console.log(`Heart has stopped beating`);
             return ws.terminate();
         }
@@ -67,35 +72,33 @@ app.use(express.static('./client'));
 app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
 
-
+/* --------- Authentication Routes --------- */
 app.post('/signup', async (req, res) => {
-    const { username, password } = req.body;
+    let { username, password } = req.body;
     
     if (!username || !password) {
         return res.status(400).json({ success: false, message: "Missing username or password" });
     }
     
+    // Force lowercase username
+    username = username.toLowerCase();
+    
     try {
-        // Hash values using your custom function
-        const hashedUsername = hashFun(username, false); // false for non-password data
-        const hashedPassword = hashFun(password, true);  // true for password
+        const hashedPassword = hashFun(password, true);
         
-        // Check if the username already exists in the `users` table
-        const [existingUsers] = await pool.query('SELECT * FROM users WHERE username = ?', [hashedUsername]);
+        // Check for existing user with this username
+        const [existingUsers] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
         if (existingUsers.length > 0) {
             return res.status(400).json({ success: false, message: "Username already exists" });
         }
         
-        // Insert into `users` table (only storing the hashed username)
-        const [userResult] = await pool.query('INSERT INTO users (username) VALUES (?)', [hashedUsername]);
+        const [userResult] = await pool.query('INSERT INTO users (username) VALUES (?)', [username]);
         if (!userResult.insertId) {
             return res.status(500).json({ success: false, message: "Signup failed at user insertion" });
         }
         
-        // Get the new user's ID
         const userId = userResult.insertId;
         
-        // Insert into `auth` table the password along with the foreign key (userId)
         const [authResult] = await pool.query('INSERT INTO auth (userId, password) VALUES (?, ?)', [userId, hashedPassword]);
         if (authResult.affectedRows === 1) {
             return res.json({ success: true, message: "Signup successful. Please log in." });
@@ -109,45 +112,42 @@ app.post('/signup', async (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-    const { username, password } = req.body;
+    let { username, password } = req.body;
     
     if (!username || !password) {
-        console.log("DHHHHHHHHH");
+        console.log("Missing credentials");
         return res.status(400).json({ success: false, message: "Missing username or password" });
     }
     
+    // Force lowercase username
+    username = username.toLowerCase();
+    
     try {
-        // Hash the provided username and password
-        const hashedUsername = hashFun(username, false);
         const hashedPassword = hashFun(password, true);
-        console.log(hashedUsername);
+        console.log(username);
         console.log(hashedPassword);
         
-        // Retrieve the user record from the `users` table
-        const [users] = await pool.query('SELECT * FROM users WHERE username = ?', [hashedUsername]);
+        const [users] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
         if (users.length === 0) {
-            console.log("CHHHHHHHHH");
+            console.log("User not found");
             return res.status(401).json({ success: false, message: "Invalid username or password" });
         }
         const user = users[0];
         
-        // Retrieve the authentication record from the `auth` table using the user's id
         const [authRecords] = await pool.query('SELECT * FROM auth WHERE userId = ?', [user.userId]);
         if (authRecords.length === 0) {
-            console.log("BHHHHH");
+            console.log("Auth record missing");
             return res.status(401).json({ success: false, message: "Invalid username or password" });
         }
         const authRecord = authRecords[0];
         
-        // Compare the hashed passwords
         if (hashedPassword !== authRecord.password) {
-            console.log("AHHHHHH");
+            console.log("Password mismatch");
             return res.status(401).json({ success: false, message: "Invalid username or password" });
         }
         
-        // Optionally, set session data on successful login
-        req.session.username = hashedUsername;
-        req.session.userId = user.id;
+        req.session.username = username;
+        req.session.userId = user.userId;
         return res.json({ success: true, message: "Login successful" });
     } catch (err) {
         console.error("Login error:", err);
@@ -155,26 +155,15 @@ app.post('/login', async (req, res) => {
     }
 });
 
-
-
-
 app.post('/index', (req, res) => {
-    const { username, password } = req.body;
-
+    let { username, password } = req.body;
     if (!username || !password) {
         return res.json({ success: false, message: "Missing username or password" });
-    }
-    else {
-        // Runs the imported hashing function for salting and hashing
-        const hashName = hashFun(username, false);
+    } else {
+        username = username.toLowerCase();
         const hashPass = hashFun(password, true);
-        
-        //If check to see if information passes in database otherwise, return the failure
-        // if(!true) {
-        //     return res.json({ success: false, message: "Username or Password incorrect" });
-        // }
-        console.log(`Returning Username Hash: ${hashName}`);
-        console.log(`Returning Password Hash: ${hashPass}`);
+        console.log(`Username: ${username}`);
+        console.log(`Password Hash: ${hashPass}`);
     }
     req.session.username = username;
     res.json({ success: true });
@@ -187,146 +176,270 @@ app.get('/chat', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+/* --------- Create/Load Room Endpoint --------- */
+app.post('/createRoom', async (req, res) => {
+    // Ensure the user is logged in
+    if (!req.session.username || !req.session.userId) {
+        return res.status(403).json({ success: false, message: "Not logged in" });
+    }
+    let { target } = req.body;
+    if (!target) {
+        return res.status(400).json({ success: false, message: "No target username provided" });
+    }
+    // Force lowercase on target username
+    target = target.toLowerCase();
+    try {
+        // Look up the target user directly (no hashing)
+        const [rows] = await pool.query("SELECT * FROM users WHERE username = ?", [target]);
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Target user not found" });
+        }
+        const targetUser = rows[0];
+        const currentUserId = req.session.userId;
+        const targetUserId = targetUser.userId;
+        // Check if a room already exists between these two users
+        const [roomRows] = await pool.query(
+            "SELECT ru.roomId FROM room_users ru WHERE ru.userId IN (?, ?) GROUP BY ru.roomId HAVING COUNT(DISTINCT ru.userId) = 2",
+            [currentUserId, targetUserId]
+        );
+        let roomId;
+        if (roomRows.length > 0) {
+            roomId = roomRows[0].roomId;
+        } else {
+            // Create new room: generate an encryption key
+            const roomKey = crypto.randomBytes(32).toString('hex');
+            const [roomResult] = await pool.query("INSERT INTO rooms (encryptionKey) VALUES (?)", [roomKey]);
+            roomId = roomResult.insertId;
+            // Associate both users with this room
+            await pool.query("INSERT INTO room_users (roomId, userId) VALUES (?, ?)", [roomId, currentUserId]);
+            await pool.query("INSERT INTO room_users (roomId, userId) VALUES (?, ?)", [roomId, targetUserId]);
+        }
+        return res.json({ success: true, roomId });
+    } catch (err) {
+        console.error("Error in createRoom:", err);
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+
+/* --------- Encryption Functions --------- */
+const algorithm = 'aes-256-cbc';
+function encryptMessage(text, key) {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(algorithm, Buffer.from(key, 'hex'), iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+}
+
+function decryptMessage(encryptedData, key) {
+    const parts = encryptedData.split(':');
+    const iv = Buffer.from(parts.shift(), 'hex');
+    const encryptedText = parts.join(':');
+    const decipher = crypto.createDecipheriv(algorithm, Buffer.from(key, 'hex'), iv);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
+async function getRoomForUser(roomId, userId) {
+  const [rows] = await pool.query(
+    "SELECT r.roomId, r.encryptionKey FROM rooms r JOIN room_users ru ON r.roomId = ru.roomId WHERE r.roomId = ? AND ru.userId = ?",
+    [roomId, userId]
+  );
+  return rows.length > 0 ? rows[0] : null;
+}
+
+/* --------- WebSocket Server --------- */
 wss.on('connection', (ws, request) => {
-    console.log(`New homie on board: ${request.session.username}`);
+    const username = request.session.username;
+    // request.room is an object with roomId and encryptionKey from our upgrade handler
+    const room = request.room || { roomId: 'public', encryptionKey: null };
+
+    ws.room = room;
+    ws.username = username;
     clients.add(ws);
+
+    // Add connection to in-memory room set
+    if (!rooms.has(room.roomId)) {
+        rooms.set(room.roomId, new Set());
+    }
+    rooms.get(room.roomId).add(ws);
+    
     ws.connected = true;
     
-    const used = process.memoryUsage().heapUsed / 1024 / 1024;
-    for (const client of clients) {
-        if (client.readyState === ws.OPEN) {
-            const allFileContents = fs.readFileSync('./chatlogs/chatlog.txt', 'utf-8');
-            allFileContents.split(/\r?\n/).forEach(line => {
-                client.send(JSON.stringify({
-                    type: 'logs',
-                    text: line
-                }));
-            });
-            console.log("Pulled Chat Log"); 
-        };
-    };
-
+    // Load and send chat history for the room (decrypting messages)
+    (async () => {
+      try {
+        const [messages] = await pool.query(
+          "SELECT * FROM messages WHERE room = ? ORDER BY id ASC", 
+          [room.roomId]
+        );
+        messages.forEach(message => {
+          let content = message.content;
+          if (message.type === 'message' && room.encryptionKey) {
+            try {
+              content = decryptMessage(message.content, room.encryptionKey);
+            } catch (e) {
+              console.error("Decryption error:", e);
+            }
+          }
+          ws.send(JSON.stringify({
+              type: message.type,
+              sender: message.sender,
+              date: message.date,
+              data: content,
+              fileName: message.fileName,
+              url: message.url
+          }));
+        });
+        console.log(`Loaded chat history for room: ${room.roomId}`);
+      } catch (err) {
+        console.error("Error loading chat history:", err);
+      }
+    })();
+    
     ws.on('pong', () => { ws.connected = true; });
     ws.on('error', console.error);
-    ws.on('message', (newData) => {
-        console.log("This is Working");       
+    
+    ws.on('message', async (newData) => {
+        console.log("Received data");
         const str = newData.toString('utf8');
-
-        // Checking to see if recieved data is a json object before processing information
         let jsonCheck = false;
+        let parsed;
         try {
-            const parsed = JSON.parse(str);
+            parsed = JSON.parse(str);
             jsonCheck = true;
-            // If the returned data type is st to file, prepare the metadata to be captured
-            if (parsed.type === 'file') {
-                dataMap.set(ws, parsed);
-            };
         } catch (err) {
-            
-            console.log("Is an object");
-        };
-        console.log(jsonCheck);
-        // Runs the file saving and sending portion of the program based on if obtained data is a JSON object
-        if(!jsonCheck && Buffer.isBuffer(newData)) {
-            console.log("File stuff happening");
+            console.log("Data is not valid JSON");
+        }
+        
+        // If file metadata is received, save it
+        if (jsonCheck && parsed.type === 'file') {
+            dataMap.set(ws, parsed);
+            return;
+        }
+        
+        // If binary data (file) is received
+        if (!jsonCheck && Buffer.isBuffer(newData)) {
+            console.log("Processing file binary data");
             const metadata = dataMap.get(ws);
-            // Verify that metadata was sent before continuing to share the file
             if (!metadata) {
-                console.log("No metadata");
+                console.log("No file metadata found");
                 return;
-            };
-            
-            console.log("Metadata recieved");
-            const filePath = path.join(__dirname, 'uploads', `${metadata.fileName}`);
+            }
             const newFileName = metadata.fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+            const filePath = path.join(uploadDir, newFileName);
             fs.writeFileSync(filePath, newData);
-            console.log(`File Recieved and Saved: ${filePath}`);
-            // The complete URL to download the uploaded files from the server
+            console.log(`File saved: ${filePath}`);
             const fileURL = `${IPAddress}uploads/${newFileName}`;
             const fileData = {
                 type: 'file',
                 fileName: newFileName,
-                sender: request.session.username,
+                sender: username,
                 url: fileURL,
                 date: metadata.date
             };
-            // Post the file with download link to chat and attach to the chatlog
-            for (const client of clients) {
-                if(client.readyState === ws.OPEN) {
-                    ws.send(JSON.stringify(fileData));
-                    console.log("Sharing File");
-                    const compiledMess = `(${fileData.date}) ${request.session.username}:  <a href="${fileURL}" downloads="${fileData.fileName}" targets="_blank">${fileData.fileName}</a>`;
-                    const chatlogFile = './chatlogs/chatlog.txt';
-                    // Adds the necessary files to the chatLog so a history is kept of the information
-                    updateLog(compiledMess, chatlogFile);
+            
+            // Broadcast file message to clients in the same room
+            rooms.get(room.roomId).forEach(client => {
+                if (client.readyState === client.OPEN) {
+                    client.send(JSON.stringify(fileData));
                 }
-            };
-            // Clear the maped data for when next file gets shared
-            dataMap.delete(ws);
-        }
-        else {
+            });
+            
+            // Save file message to the database
             try {
-                const sentData = JSON.parse(newData);
-                console.log("Message stuff happening");
-
-                if (sentData.type === 'message') {
-                    console.log(`Time:${sentData.date} User:${request.session.username}: ${sentData.data}`);
-
-                    for (const client of clients) {
-                        if (client.readyState === ws.OPEN) {
-                            client.send(JSON.stringify({
-                                type: 'message',
-                                sender: request.session.username,
-                                date: sentData.date,
-                                data: sentData.data
-                            }));
-                            console.log(sentData.data);
-                            const compiledMess = `(${sentData.date}) ${request.session.username}:  ${sentData.data}`;
-                            const chatlogFile = './chatlogs/chatlog.txt';
-                            updateLog(compiledMess, chatlogFile);
-                            console.log("Updated Text File"); 
-                        }
-                    }
-                }
-                else if (sentData.type === 'file') {
-                    dataMap.set(ws, sentData);
-                };
-            } catch (err) {
-                console.log("JSON type error");
+              await pool.query(
+                "INSERT INTO messages (room, sender, type, content, date, fileName, url) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [room.roomId, username, 'file', '', metadata.date, newFileName, fileURL]
+              );
+            } catch(err) {
+              console.error("Error saving file message:", err);
             }
+            dataMap.delete(ws);
+            return;
         }
         
-    });
-    ws.on('send_file', async (data, cb) => {
-        if (data.type == 'file') {
-            console.log("Binary recieved");
-            cb("File recieved successfully");
+        // Process text messages
+        if (jsonCheck) {
+            if (parsed.type === 'message') {
+                console.log(`Room: ${room.roomId} | (${parsed.date}) ${username}: ${parsed.data}`);
+                // Broadcast the message to clients in the room
+                rooms.get(room.roomId).forEach(client => {
+                    if (client.readyState === client.OPEN) {
+                        client.send(JSON.stringify({
+                            type: 'message',
+                            sender: username,
+                            date: parsed.date,
+                            data: parsed.data
+                        }));
+                    }
+                });
+                // Encrypt message before storing if encryption key exists
+                let encryptedText = parsed.data;
+                if (room.encryptionKey) {
+                    try {
+                      encryptedText = encryptMessage(parsed.data, room.encryptionKey);
+                    } catch (e) {
+                      console.error("Encryption error:", e);
+                    }
+                }
+                // Save the message to the database
+                try {
+                  await pool.query(
+                    "INSERT INTO messages (room, sender, type, content, date) VALUES (?, ?, ?, ?, ?)",
+                    [room.roomId, username, 'message', encryptedText, parsed.date]
+                  );
+                } catch(err) {
+                  console.error("Error saving message:", err);
+                }
+            } else if (parsed.type === 'file') {
+                dataMap.set(ws, parsed);
+            }
         }
-        ws.send(data);
-    })
+    });
+    
     ws.on('close', () => {
-        console.log(`${request.session.username} disconnected`);
+        console.log(`${username} disconnected from room ${room.roomId}`);
         clients.delete(ws);
-        clearInterval(beat);
+        if (rooms.has(room.roomId)) {
+            rooms.get(room.roomId).delete(ws);
+            if (rooms.get(room.roomId).size === 0) {
+              rooms.delete(room.roomId);
+            }
+        }
     });
 });
 
 httpsServer.on('upgrade', function upgrade(request, socket, head) {
     const urlParams = new URLSearchParams(request.url.split('?')[1]);
     const token = urlParams.get('token');
+    const roomId = urlParams.get('room'); // expecting room id
 
-    if (token !== 'mysecrettoken') {  
-        console.log("Unauthorized WebSocket connection attempt");
+    if (token !== 'mysecrettoken' || !roomId) {  
+        console.log("Unauthorized or missing room parameter");
         socket.destroy();
         return;
-    };
+    }
 
-    sessionMiddleware(request, {}, () => {
+    sessionMiddleware(request, {}, async () => {
         if (!request.session.username) {
             console.log("Unauthorized WebSocket request - No username in session");
             socket.destroy();
             return;
-        };
+        }
+        // Validate that the user is associated with the room
+        const roomRecord = await getRoomForUser(roomId, request.session.userId);
+        if (!roomRecord) {
+            console.log("User is not authorized for this room");
+            console.log(roomId);
+            console.log(request.session.userId);
+            socket.destroy();
+            return;
+        }
+        // Attach the room record (with roomId and encryptionKey) to the request
+        request.room = roomRecord;
+        
         wss.handleUpgrade(request, socket, head, function done(ws) {
             wss.emit('connection', ws, request);
         });
@@ -338,9 +451,10 @@ httpsServer.listen(PORT, '0.0.0.0', () => {
 });
 
 async function getUserByUsername(username) {
+    // Ensure username is lowercase before query
+    username = username.toLowerCase();
     const [rows] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
     return rows;
-
 }
 
 getUserByUsername('admin')

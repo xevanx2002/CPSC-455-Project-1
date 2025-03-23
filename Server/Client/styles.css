@@ -1,0 +1,108 @@
+/* index.css */
+/* Import a clean sans-serif font for clarity */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(135deg, #000000, #0b0f1a);
+  font-family: 'Noto Sans JP', sans-serif;
+  color: #e0e0e0;
+}
+
+/* Center content using flex on the body */
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.container {
+  width: 90%;
+  max-width: 350px;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid #008cff;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0, 140, 255, 0.5);
+  text-align: center;
+}
+
+h2 {
+  margin-top: 0;
+  color: #008cff;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+label {
+  text-align: left;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid #008cff;
+  border-radius: 5px;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  box-sizing: border-box;
+}
+
+button {
+  padding: 0.75rem;
+  border: none;
+  border-radius: 5px;
+  background: linear-gradient(45deg, #008cff, #00aaff);
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+  margin-top: 0.5rem;
+}
+
+button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px #008cff;
+}
+
+.hidden {
+  display: none;
+}
+
+p {
+  font-size: 0.9rem;
+}
+
+a {
+  color: #008cff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .container {
+    padding: 1rem;
+    margin: 1rem;
+  }
+  h2 {
+    font-size: 1.5em;
+  }
+  label, button, input[type="text"], input[type="password"] {
+    font-size: 0.9rem;
+    padding: 0.5rem;
+  }
+}

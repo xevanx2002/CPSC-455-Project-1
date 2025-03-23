@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Start a Chat</title>
+  <link rel="stylesheet" href="styles3.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Start a Chat</h1>
+    <label for="targetUsername">Enter username to chat with:</label>
+    <input type="text" id="targetUsername" placeholder="Target username">
+    <button onclick="startChat()">Start Chat</button>
+  </div>
+
+  <script>
+    async function startChat() {
+      const target = document.getElementById('targetUsername').value;
+      if (!target) {
+        alert("Please enter a username");
+        return;
+      }
+      try {
+        const response = await fetch('/createRoom', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ target })
+        });
+        const data = await response.json();
+        if (data.success) {
+          // Redirect to chat.html with the room id as a query parameter.
+          window.location.href = `/chat.html?room=${data.roomId}`;
+        } else {
+          alert(data.message);
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Error creating room");
+      }
+    }
+  </script>
+</body>
+</html>
