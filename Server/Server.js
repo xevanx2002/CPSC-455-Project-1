@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads');
-const IPAddress = '192.168.56.1';
+const IPAddress = '172.20.10.4';
 
 const options = {
     key: fs.readFileSync('./certs/key.pem'),
