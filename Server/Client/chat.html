@@ -39,7 +39,6 @@
     const IPAddress = '192.168.56.1';
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('room');
-    const emojiPick = new EmojiButton();
     const action = document.querySelector('#addEmoji');
     var socket = new WebSocket(`wss://${IPAddress}:8080?token=mysecrettoken&room=${roomId}`);
 
@@ -127,15 +126,6 @@
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
     };
-
-    picket.on('emoji', emoji => {
-        const input = document.querySelector('#messageInput');
-        input.value = input.value + emoji;
-    });
-
-    action.addEventListener('click', () => {
-        picker.togglePicker(action);
-    });
   </script>
 </body>
 </html>
