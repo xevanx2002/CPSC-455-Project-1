@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads');
-const IPAddress = 'https://192.168.56.1:8080/';
+const IPAddress = '192.168.56.1';
 
 const options = {
     key: fs.readFileSync('./certs/key.pem'),
@@ -331,7 +331,7 @@ wss.on('connection', (ws, request) => {
             const filePath = path.join(uploadDir, newFileName);
             fs.writeFileSync(filePath, newData);
             console.log(`File saved: ${filePath}`);
-            const fileURL = `${IPAddress}uploads/${newFileName}`;
+            const fileURL = `https://${IPAddress}:8080/uploads/${newFileName}`;
             const fileData = {
                 type: 'file',
                 fileName: newFileName,
