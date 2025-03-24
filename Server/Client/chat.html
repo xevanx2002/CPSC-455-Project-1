@@ -19,11 +19,11 @@
     <div class="chat-input-area">
       <input type="text" id="messageInput" placeholder="Type your message...">
       <button id="sendMess" onclick="sendMessage()">Send</button>
-
+      <button id="addEmoji">😀</button>
       <input type="file" id="gotFile"
              accept=".doc, .docx, .xml, application/msword,
                      application/openxmlformats-officedocument.wordprocessingml.document,
-                     .pdf, .rar, .zip, .txt">
+                     .pdf, .rar, .zip, .txt, .png, .jpeg, .gif">
       <button onclick="sendFile()">Send File</button>
 
       <div class="chat-controls">
@@ -33,10 +33,13 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4/dist/index.min.js"></script>
   <script>
     // --- WebSocket & Chat Logic ---
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('room');
+    const emojiPick = new EmojiButton();
+    const action = document.querySelector('#addEmoji');
     var socket = new WebSocket(`wss://192.168.56.1:8080?token=mysecrettoken&room=${roomId}`);
 
     function joinWeb() {
@@ -122,7 +125,16 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
-    }
+    };
+
+    picket.on('emoji', emoji => {
+        const input = document.querySelector('#messageInput');
+        input.value = input.value + emoji;
+    });
+
+    action.addEventListener('click', () => {
+        picker.togglePicker(action);
+    });
   </script>
 </body>
 </html>
