@@ -93,14 +93,14 @@ To connect to the WebSocket server, you need to update the IP address:
    The terminal will indicate when the server is running.
 2. Open a browser and navigate to:
    ```
-   http://your-ip-address:8080
+   https://your-ip-address:8080?token=mysecrettoken
    ```
 3. Accept the security warning and proceed.
 4. Log in using your credentials and start chatting.
 5. To stop the server, press **CTRL + C** in the terminal.
 
 ## Testing the Setup
-1. Open the login page: `http://your-ip-address:8080?token=mytoken`.
+1. Open the login page: `https://your-ip-address:8080?token=mysecrettoken`.
 2. Sign up or log in.
 3. Start a chat session.
 4. Verify messages are being sent and received.
