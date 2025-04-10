@@ -19,6 +19,11 @@ const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads');
 const IPAddress = 'ip goes here';
 
+const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
+
 const options = {
     key: fs.readFileSync('./certs/key.pem'),
     cert: fs.readFileSync('./certs/cert.pem')
@@ -41,8 +46,8 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const httpsServer = https.createServer(options, app);
-const wss = new WebSocketServer({ noServer: true });
+//const httpsServer = https.createServer(options, app);
+const wss = new WebSocketServer({ server });
 const clients = new Set();
 const rooms = new Map(); // In-memory map for active rooms
 
@@ -411,7 +416,7 @@ wss.on('connection', (ws, request) => {
     });
 });
 
-httpsServer.on('upgrade', function upgrade(request, socket, head) {
+server.on('upgrade', function upgrade(request, socket, head) {
     const urlParams = new URLSearchParams(request.url.split('?')[1]);
     const token = urlParams.get('token');
     const roomId = urlParams.get('room'); // expecting room id
@@ -446,9 +451,9 @@ httpsServer.on('upgrade', function upgrade(request, socket, head) {
     });
 });
 
-httpsServer.listen(PORT, '0.0.0.0', () => {
-    console.log('Secure WebSocket Server running on **********');
-});
+// httpsServer.listen(PORT, '0.0.0.0', () => {
+//     console.log('Secure WebSocket Server running on **********');
+// });
 
 async function getUserByUsername(username) {
     // Ensure username is lowercase before query
