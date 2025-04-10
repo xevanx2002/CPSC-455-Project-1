@@ -181,6 +181,12 @@ app.get('/chat', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+app.get('/', (req, res) => {
+
+    res.send("Nothing to see here...");
+
+});
+
 /* --------- Create/Load Room Endpoint --------- */
 app.post('/createRoom', async (req, res) => {
     // Ensure the user is logged in
