@@ -164,7 +164,7 @@ app.post('/login', async (req, res) => {
         
         req.session.username = username;
         req.session.userId = user.userId;
-        return res.json({ success: true, message: "Login successful" });
+        return res.json({ success: true, redirect: 'https://securrchat455.vercel.app/menu.html' });
     } catch (err) {
         console.error("Login error:", err);
         return res.status(500).json({ success: false, message: "Internal server error" });
