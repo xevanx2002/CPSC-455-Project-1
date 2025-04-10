@@ -74,8 +74,8 @@ const beat = setInterval(function ping() {
     });
 }, 30000);
 
-app.use(sessionMiddleware);
 app.use(cookieParser());
+app.use(sessionMiddleware);
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, './client')));
 app.use(express.static('./client'));
