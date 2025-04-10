@@ -2,7 +2,7 @@ import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
-import session from 'express-session';
+import session from 'cookie-session';
 import bodyParser from 'body-parser';
 import hashFun from './src/hash.js';
 import express from 'express';
