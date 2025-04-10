@@ -33,7 +33,7 @@ const options = {
 const sessionMiddleware = session({
     secret: 'mySecretKey', 
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
     cookie: {
         secure: true,
         httpOnly: true,
