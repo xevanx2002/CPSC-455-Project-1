@@ -164,6 +164,7 @@ app.post('/login', async (req, res) => {
         
         req.session.username = username;
         req.session.userId = user.userId;
+        console.log('Session saved for:', req.session);
         return res.json({ success: true, redirect: 'https://securrchat455.vercel.app/menu.html' });
     } catch (err) {
         console.error("Login error:", err);
