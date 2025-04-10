@@ -11,6 +11,7 @@ import path from 'path';
 import fs from 'fs';
 import pool from './DB.js';
 import crypto from 'crypto';
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -33,7 +34,11 @@ const sessionMiddleware = session({
     secret: 'mySecretKey', 
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false }
+    cookie: {
+        secure: true,
+        httpOnly: true,
+        sameSite: 'none'
+    }
 });
 
 const limiter = rateLimit({
@@ -76,6 +81,12 @@ app.use(express.static(path.join(__dirname, './client')));
 app.use(express.static('./client'));
 app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
+app.use(cors({
+  origin: 'https://securechat455.vercel.app', // your Vercel URL
+  credentials: true
+}));
+
+
 
 /* --------- Authentication Routes --------- */
 app.post('/signup', async (req, res) => {
