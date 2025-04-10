@@ -198,6 +198,14 @@ app.get('/', (req, res) => {
 
 });
 
+app.get('/debug-session', (req, res) => {
+    res.json({
+      session: req.session,
+      cookies: req.headers.cookie
+    });
+  });
+  
+
 /* --------- Create/Load Room Endpoint --------- */
 app.post('/createRoom', async (req, res) => {
     // Ensure the user is logged in
