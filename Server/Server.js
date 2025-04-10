@@ -185,6 +185,15 @@ app.post('/index', (req, res) => {
     res.json({ success: true });
 });
 
+app.get('/api/session-check', (req, res) => {
+    if (req.session.username) {
+      return res.json({ loggedIn: true, username: req.session.username });
+    } else {
+      return res.status(401).json({ loggedIn: false });
+    }
+  });
+  
+
 app.get('/chat', (req, res) => {
     if (!req.session.username) {
         return res.status(403).send("Access Denied. Please login.");
