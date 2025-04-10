@@ -103,7 +103,15 @@ app.use(cors({
   credentials: true
 }));
 
-
+function wrapMiddleware(middleware) {
+    return (req, res) => new Promise((resolve, reject) => {
+        middleware(req, res, (err) => {
+        if (err) reject(err);
+        else resolve();
+        });
+    });
+}
+  
 
 /* --------- Authentication Routes --------- */
 app.post('/signup', async (req, res) => {
@@ -479,31 +487,34 @@ server.on('upgrade', function upgrade(request, socket, head) {
         return;
     }
 
-    sessionMiddleware(request, {}, async () => {
-        if (!request.session || !request.session.username) {
-            console.log("Unauthorized WebSocket request - No username in session");
-            socket.destroy();
-            return;
-        }
+    wrapMiddleware(sessionMiddleware)(request, {}).then(async () => {
+    if (!request.session || !request.session.username) {
+      console.log("Unauthorized WebSocket request - No username in session");
+      socket.destroy();
+      return;
+    }
 
-        try {
-            const roomRecord = await getRoomForUser(roomId, request.session.userId);
-            if (!roomRecord) {
-                console.log("User not authorized for this room");
-                socket.destroy();
-                return;
-            }
+    try {
+      const roomRecord = await getRoomForUser(roomId, request.session.userId);
+      if (!roomRecord) {
+        console.log("User not authorized for this room");
+        socket.destroy();
+        return;
+      }
 
-            request.room = roomRecord;
+      request.room = roomRecord;
 
-            wss.handleUpgrade(request, socket, head, function done(ws) {
-                wss.emit('connection', ws, request);
-            });
-        } catch (err) {
-            console.error("Upgrade error:", err);
-            socket.destroy();
-        }
-    });
+      wss.handleUpgrade(request, socket, head, function done(ws) {
+        wss.emit('connection', ws, request);
+      });
+    } catch (err) {
+      console.error("Upgrade error:", err);
+      socket.destroy();
+    }
+  }).catch((err) => {
+    console.error("Session middleware failed:", err);
+    socket.destroy();
+  });
 });
 
 // httpsServer.listen(PORT, '0.0.0.0', () => {
