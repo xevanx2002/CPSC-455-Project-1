@@ -1,24 +1,23 @@
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
-import cookie from 'cookie';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import connectMySQL from 'express-mysql-session';
 import bodyParser from 'body-parser';
 import hashFun from './src/hash.js';
 import express from 'express';
-import https from 'https';
+//import https from 'https';
 import path from 'path';
 import fs from 'fs';
 import pool from './DB.js';
 import crypto from 'crypto';
 import cors from 'cors';
-
+import MySQLStore from 'express-mysql-session';
 
 
 const app = express();
-const MySQLStore = connectMySQL(session);
+const MySQLFactory = connectMySQL(session);
 const PORT = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,7 +53,6 @@ const sessionMiddleware = session({
         secure: true,
         httpOnly: true,
         sameSite: 'none',
-        domain: 'securechatproject.onrender.com',
         maxAge: 1000 * 60 * 60 * 24,
     }
 });
@@ -100,28 +98,12 @@ app.use(express.static(path.join(__dirname, './client')));
 app.use(express.static('./client'));
 app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
-
-app.options('*', cors({
-    origin: 'https://securrchat455.vercel.app',
-    credentials: true
-}));
-  
 app.use(cors({
   origin: 'https://securrchat455.vercel.app', 
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  credentials: true
 }));
 
-function wrapMiddleware(middleware) {
-    return (req, res) => new Promise((resolve, reject) => {
-        middleware(req, res, (err) => {
-        if (err) reject(err);
-        else resolve();
-        });
-    });
-}
-  
+
 
 /* --------- Authentication Routes --------- */
 app.post('/signup', async (req, res) => {
@@ -497,34 +479,31 @@ server.on('upgrade', function upgrade(request, socket, head) {
         return;
     }
 
-    wrapMiddleware(sessionMiddleware)(request, {}).then(async () => {
-    if (!request.session || !request.session.username) {
-      console.log("Unauthorized WebSocket request - No username in session");
-      socket.destroy();
-      return;
-    }
+    sessionMiddleware(request, {}, async () => {
+        if (!request.session || !request.session.username) {
+            console.log("Unauthorized WebSocket request - No username in session");
+            socket.destroy();
+            return;
+        }
 
-    try {
-      const roomRecord = await getRoomForUser(roomId, request.session.userId);
-      if (!roomRecord) {
-        console.log("User not authorized for this room");
-        socket.destroy();
-        return;
-      }
+        try {
+            const roomRecord = await getRoomForUser(roomId, request.session.userId);
+            if (!roomRecord) {
+                console.log("User not authorized for this room");
+                socket.destroy();
+                return;
+            }
 
-      request.room = roomRecord;
+            request.room = roomRecord;
 
-      wss.handleUpgrade(request, socket, head, function done(ws) {
-        wss.emit('connection', ws, request);
-      });
-    } catch (err) {
-      console.error("Upgrade error:", err);
-      socket.destroy();
-    }
-  }).catch((err) => {
-    console.error("Session middleware failed:", err);
-    socket.destroy();
-  });
+            wss.handleUpgrade(request, socket, head, function done(ws) {
+                wss.emit('connection', ws, request);
+            });
+        } catch (err) {
+            console.error("Upgrade error:", err);
+            socket.destroy();
+        }
+    });
 });
 
 // httpsServer.listen(PORT, '0.0.0.0', () => {
