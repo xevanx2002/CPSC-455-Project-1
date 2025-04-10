@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
+import connectMySQL from 'express-mysql-session';
 import bodyParser from 'body-parser';
 import hashFun from './src/hash.js';
 import express from 'express';
@@ -12,8 +13,11 @@ import fs from 'fs';
 import pool from './DB.js';
 import crypto from 'crypto';
 import cors from 'cors';
+import MySQLStore from 'express-mysql-session';
+
 
 const app = express();
+const MySQLFactory = connectMySQL(session);
 const PORT = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,16 +34,26 @@ const options = {
     cert: fs.readFileSync('./certs/cert.pem')
 };
 
+const sessionStore = new MySQLStore({
+    host: process.env.DB_HOST,
+    port: 3306,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    createDataBaseTable: true
+});
+
 const sessionMiddleware = session({
-    secret: 'mySecretKey', 
+    name: 'sid',
+    secret: 'mySecretKey',
+    store: sessionStore, 
     resave: false,
     saveUninitialized: false,
     cookie: {
-        domain: undefined,
         secure: true,
         httpOnly: true,
         sameSite: 'none',
-        path: '/'
+        maxAge: 1000 * 60 * 60 * 24,
     }
 });
 
@@ -76,6 +90,7 @@ const beat = setInterval(function ping() {
     });
 }, 30000);
 
+app.set('trust proxy', 1);
 app.use(cookieParser());
 app.use(sessionMiddleware);
 app.use(bodyParser.json());
@@ -456,35 +471,38 @@ wss.on('connection', (ws, request) => {
 server.on('upgrade', function upgrade(request, socket, head) {
     const urlParams = new URLSearchParams(request.url.split('?')[1]);
     const token = urlParams.get('token');
-    const roomId = urlParams.get('room'); // expecting room id
+    const roomId = urlParams.get('room');
 
-    if (token !== 'mysecrettoken' || !roomId) {  
+    if (token !== 'mysecrettoken' || !roomId) {
         console.log("Unauthorized or missing room parameter");
         socket.destroy();
         return;
     }
 
     sessionMiddleware(request, {}, async () => {
-        if (!request.session.username) {
+        if (!request.session || !request.session.username) {
             console.log("Unauthorized WebSocket request - No username in session");
             socket.destroy();
             return;
         }
-        // Validate that the user is associated with the room
-        const roomRecord = await getRoomForUser(roomId, request.session.userId);
-        if (!roomRecord) {
-            console.log("User is not authorized for this room");
-            console.log(roomId);
-            console.log(request.session.userId);
+
+        try {
+            const roomRecord = await getRoomForUser(roomId, request.session.userId);
+            if (!roomRecord) {
+                console.log("User not authorized for this room");
+                socket.destroy();
+                return;
+            }
+
+            request.room = roomRecord;
+
+            wss.handleUpgrade(request, socket, head, function done(ws) {
+                wss.emit('connection', ws, request);
+            });
+        } catch (err) {
+            console.error("Upgrade error:", err);
             socket.destroy();
-            return;
         }
-        // Attach the room record (with roomId and encryptionKey) to the request
-        request.room = roomRecord;
-        
-        wss.handleUpgrade(request, socket, head, function done(ws) {
-            wss.emit('connection', ws, request);
-        });
     });
 });
 
