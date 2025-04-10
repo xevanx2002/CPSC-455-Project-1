@@ -82,7 +82,7 @@ app.use(express.static('./client'));
 app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
 app.use(cors({
-  origin: 'https://securechat455.vercel.app', 
+  origin: 'https://securrchat455.vercel.app', 
   credentials: true
 }));
 
