@@ -13,11 +13,11 @@ import fs from 'fs';
 import pool from './DB.js';
 import crypto from 'crypto';
 import cors from 'cors';
-import MySQLStore from 'express-mysql-session';
+
 
 
 const app = express();
-const MySQLFactory = connectMySQL(session);
+const MySQLStore = connectMySQL(session);
 const PORT = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
