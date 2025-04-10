@@ -36,14 +36,14 @@
   <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4/dist/index.min.js"></script>
   <script>
     // --- WebSocket & Chat Logic ---
-    const IPAddress = 'ip goes here';
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('room');
     const action = document.querySelector('#addEmoji');
-    var socket = new WebSocket(`wss://${IPAddress}:8080?token=mysecrettoken&room=${roomId}`);
+    const WS_URL = 'wss://securechatproject.onrender.com';
+    const socket = new WebSocket(`${WS_URL}?token=mysecrettoken&room=${roomId}`);
 
     function joinWeb() {
-      socket = new WebSocket(`wss://${IPAddress}:8080?token=mysecrettoken&room=${roomId}`);
+      socket = new WebSocket(`${WS_URL}?token=mysecrettoken&room=${roomId}`);
       socket.onmessage = function(event) {
         displayMessage(event);
       };
