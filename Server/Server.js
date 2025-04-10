@@ -98,9 +98,17 @@ app.use(express.static(path.join(__dirname, './client')));
 app.use(express.static('./client'));
 app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
+
+app.options('*', cors({
+    origin: 'https://securrchat455.vercel.app',
+    credentials: true
+}));
+  
 app.use(cors({
   origin: 'https://securrchat455.vercel.app', 
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 function wrapMiddleware(middleware) {
