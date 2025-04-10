@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
+import cookie from 'cookie';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import connectMySQL from 'express-mysql-session';
@@ -53,6 +54,7 @@ const sessionMiddleware = session({
         secure: true,
         httpOnly: true,
         sameSite: 'none',
+        domain: 'securechatproject.onrender.com',
         maxAge: 1000 * 60 * 60 * 24,
     }
 });
