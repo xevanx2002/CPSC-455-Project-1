@@ -39,15 +39,15 @@ const options = {
 
 // Configure cookie-session middleware.
 const sessionMiddleware = session({
-  secret: '622ce618f28e8182d5d8b35395b90195ae4de8ff6b45bb46adb98ada0647b600', 
+  secret: '622ce618f28e8182d5d8b35395b90195ae4de8ff6b45bb46adb98ada0647b600',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    // When the client and server are on the same origin, you can use a stricter sameSite:
-    secure: true,       // true when using HTTPS.
+    secure: true,
     httpOnly: true,
-    sameSite: 'lax',    // 'lax' is usually a good balance for same-origin apps.
-    path: '/'
+    sameSite: 'none', // Changed to 'none' for cross-site usage
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000 // 1 day expiration
   }
 });
 
@@ -70,7 +70,8 @@ app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
 app.use(cors({
   origin: 'https://securechatproject.onrender.com', 
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
 app.get('*', (req, res) => {
@@ -465,46 +466,14 @@ function decodeSession(rawValue) {
 
 // --- WebSocket Upgrade Handler: Manually Extract Cookie-Session Data ---
 server.on('upgrade', function upgrade(request, socket, head) {
-    // Parse cookies from the request header.
-    const cookies = cookie.parse(request.headers.cookie || '');
-    const rawCookie = cookies['session'];       // Base64-encoded session data.
-    const rawCookieSig = cookies['session.sig'];  // Session signature.
-    
-    // Debug logging: print raw cookie values.
-    console.log("Upgrade: rawCookie:", rawCookie);
-    console.log("Upgrade: rawCookieSig:", rawCookieSig);
-    
-    if (!rawCookie || !rawCookieSig) {
-      console.log("Session cookie or signature not found");
+  // Use the same session middleware as HTTP requests
+  sessionMiddleware(request, {}, () => {
+    if (!request.session || !request.session.username) {
+      console.error("No session data on request");
       socket.destroy();
       return;
     }
-    
-    // Compute the full signed cookie value.
-    const fullSigned = signature.sign(rawCookie, '622ce618f28e8182d5d8b35395b90195ae4de8ff6b45bb46adb98ada0647b600');
-    console.log("Upgrade: fullSigned:", fullSigned);
-    // Extract the signature hash (the part after the period).
-    const expectedHash = fullSigned.split('.')[1];
-    console.log("Upgrade: expectedHash:", expectedHash);
-    
-    if (rawCookieSig === expectedHash) {
-      console.log("Invalid session cookie signature");
-      socket.destroy();
-      return;
-    }
-    
-    // Decode the Base64-encoded session data.
-    const sessionData = decodeSession(rawCookie);
-    if (!sessionData) {
-      console.log("Failed to decode session data");
-      socket.destroy();
-      return;
-    }
-    
-    // Attach the session data to the request.
-    request.session = sessionData;
-    
-    // Validate that the required room parameter is present.
+
     const urlParams = new URLSearchParams(request.url.split('?')[1]);
     const roomId = urlParams.get('room');
     if (!roomId) {
@@ -512,8 +481,8 @@ server.on('upgrade', function upgrade(request, socket, head) {
       socket.destroy();
       return;
     }
-    
-    // Optionally, verify that the user is authorized for the room.
+
+    // Verify room access
     getRoomForUser(roomId, request.session.userId)
       .then(roomRecord => {
         if (!roomRecord) {
@@ -523,9 +492,8 @@ server.on('upgrade', function upgrade(request, socket, head) {
         }
         request.room = roomRecord;
         
-        // Complete the WebSocket handshake.
         wss.handleUpgrade(request, socket, head, function done(ws) {
-            wss.emit('connection', ws, request);
+          wss.emit('connection', ws, request);
         });
       })
       .catch(err => {
@@ -533,4 +501,5 @@ server.on('upgrade', function upgrade(request, socket, head) {
         socket.destroy();
       });
   });
+});
   
