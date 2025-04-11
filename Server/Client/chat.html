@@ -59,6 +59,10 @@
     };
 
     function joinWeb() {
+      if (socket && socket.readyState !== WebSocket.CLOSED) {
+        console.log("Socket already open.");
+        return;
+      }
       socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}&room=${roomId}`);
       socket.onmessage = function(event) {
         displayMessage(event);
