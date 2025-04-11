@@ -44,7 +44,7 @@ const sessionMiddleware = session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true,            // Set to true for HTTPS.
+    secure: false,            // Set to true for HTTPS.
     httpOnly: true,
     sameSite: 'none',        // For cross-site usage; adjust if on the same domain.
     path: '/',
