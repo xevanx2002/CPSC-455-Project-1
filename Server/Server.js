@@ -257,6 +257,7 @@ const beat = setInterval(function ping() {
 }, 30000);
 
 wss.on('connection', (ws, request) => {
+  console.log("Connection event received, request.user:", request.user);
   // WebSocket connections now rely on JWT, so request.user is set in upgrade.
   if (!request.user || !request.user.username) {
     console.error("Connection error: No user data in token");
@@ -441,6 +442,7 @@ server.on('upgrade', function upgrade(request, socket, head) {
     console.log("Upgrade: Decoded JWT:", decoded);
     // Attach decoded JWT data to request.user.
     request.user = decoded;
+    console.log("Upgraded: Attached request.user:", request.user);
     
     // Validate that the user is allowed in the room.
     getRoomForUser(roomId, decoded.userId)
