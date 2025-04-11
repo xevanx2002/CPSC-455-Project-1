@@ -40,7 +40,7 @@
     const roomId = urlParams.get('room');
     const action = document.querySelector('#addEmoji');
     const WS_URL = 'wss://securechatproject.onrender.com';
-    const socket = new WebSocket(`${WS_URL}?token=mysecrettoken&room=${roomId}`);
+    let socket = new WebSocket(`${WS_URL}?token=mysecrettoken&room=${roomId}`);
 
     function joinWeb() {
       socket = new WebSocket(`${WS_URL}?token=mysecrettoken&room=${roomId}`);

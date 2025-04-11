@@ -468,6 +468,9 @@ server.on('upgrade', function upgrade(request, socket, head) {
   const cookies = cookie.parse(request.headers.cookie || '');
   const rawCookie = cookies['session'];       // Base64-encoded session data.
   const rawCookieSig = cookies['session.sig'];  // Session signature.
+
+  console.log("Upgrade: rawCookie:", rawCookie);
+  console.log("Upgrade: rawCookieSig:", rawCookieSig);
   
   if (!rawCookie || !rawCookieSig) {
     console.log("Session cookie or signature not found");
