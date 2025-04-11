@@ -459,6 +459,7 @@ wss.on('connection', (ws, request) => {
 
 server.on('upgrade', function upgrade(request, socket, head) {
     // Parse cookies from the header
+    console.log('TTHIS IS SPARTA:', request);
     const cookies = cookie.parse(request.headers.cookie || '');
     const rawCookie = cookies['session']; // use your cookie name if different
 
