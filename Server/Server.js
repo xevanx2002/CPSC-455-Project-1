@@ -235,7 +235,7 @@ async function getRoomForUser(roomId, userId) {
 }
 
 /* --------- WebSocket Server Setup --------- */
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ noServer: true });
 const clients = new Set();
 const wsRooms = new Map(); // in-memory map for active rooms
 let dataMap = new Map();
@@ -422,6 +422,7 @@ wss.on('connection', (ws, request) => {
 
 /* --------- WebSocket Upgrade Handler using JWT --------- */
 server.on('upgrade', function upgrade(request, socket, head) {
+  console.log("SUSPECT SOCKET:", request.url);
   if (socket.upgraded) {
     console.log("Upgrade: Socket already upgraded. Ignoring duplicate upgrade.");
     socket.destroy();
