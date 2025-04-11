@@ -478,7 +478,7 @@ server.on('upgrade', function upgrade(request, socket, head) {
   }
   
   // Compute the expected full signature using our secret.
-  const secretBuffer = Buffer.from(sessionSecret, 'hex');
+  const secretBuffer = Buffer.from(sessionSecret, 'utf8');
   const fullSigned = signature.sign(rawCookie, sessionSecret);
   // Extract the hash portion (after the "s:" prefix or period).
   let expectedHash = fullSigned.split('.')[1];
