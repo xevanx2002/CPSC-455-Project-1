@@ -258,7 +258,7 @@ const beat = setInterval(function ping() {
 
 wss.on('connection', (ws, request) => {
   console.log("Connection event received, ws.user:", ws.user);
-  const user = ws.user;
+  
   // WebSocket connections now rely on JWT, so request.user is set in upgrade.
   if (!request.user || !request.user.username) {
     console.error("Connection error: No user data in token");
@@ -266,7 +266,7 @@ wss.on('connection', (ws, request) => {
     return;
   }
   
-  const username = user.username;
+  const username = ws.user.username;
   const room = ws.room || { roomId: 'public', encryptionKey: null };
   
   // ws.room = room;
