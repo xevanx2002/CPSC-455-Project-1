@@ -16,6 +16,7 @@ import crypto from 'crypto';
 import cors from 'cors';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,10 +38,10 @@ const sessionMiddleware = session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        domain: undefined,
+       
         secure: true,
         httpOnly: true,
-        sameSite: 'none',
+        sameSite: 'lax',
         path: '/'
     }
 });
@@ -78,6 +79,8 @@ const beat = setInterval(function ping() {
     });
 }, 30000);
 
+
+
 app.use(cookieParser());
 app.use(sessionMiddleware);
 app.use(bodyParser.json());
@@ -86,7 +89,7 @@ app.use(express.static('./Client'));
 app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
 app.use(cors({
-  origin: 'https://securrchat455.vercel.app', 
+  origin: 'https://securechatproject.onrender.com', 
   credentials: true
 }));
 
@@ -169,7 +172,7 @@ app.post('/login', async (req, res) => {
         req.session.username = username;
         req.session.userId = user.userId;
         console.log('Session saved for:', req.session);
-        return res.json({ success: true, redirect: 'https://securrchat455.vercel.app/menu.html' });
+        return res.json({ success: true, redirect: 'https://securechatproject.onrender.com/menu.html' });
     } catch (err) {
         console.error("Login error:", err);
         return res.status(500).json({ success: false, message: "Internal server error" });
