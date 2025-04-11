@@ -480,6 +480,8 @@ server.on('upgrade', function upgrade(request, socket, head) {
   
   // Verify the signature using the same secret used in cookie-session.
   const expectedSig = signature.sign(rawCookie, 'mySecretKey');
+  console.log("Upgrade: expectedSig:", expectedSig);
+  
   if (rawCookieSig !== expectedSig) {
     console.log("Invalid session cookie signature");
     socket.destroy();
