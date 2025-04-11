@@ -199,11 +199,8 @@ app.get('/api/session-check', (req, res) => {
   });
   
 
-app.get('/chat', (req, res) => {
-    if (!req.session.username) {
-        return res.status(403).send("Access Denied. Please login.");
-    }
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client', 'index.html'));
 });
 
 app.get('/', (req, res) => {
@@ -295,7 +292,9 @@ async function getRoomForUser(roomId, userId) {
 
 /* --------- WebSocket Server --------- */
 wss.on('connection', (ws, request) => {
+    console.log(request);
     const username = request.session.username;
+
     // request.room is an object with roomId and encryptionKey from our upgrade handler
     const room = request.room || { roomId: 'public', encryptionKey: null };
 
