@@ -421,6 +421,11 @@ wss.on('connection', (ws, request) => {
 
 /* --------- WebSocket Upgrade Handler using JWT --------- */
 server.on('upgrade', function upgrade(request, socket, head) {
+  if (socket.upgraded) {
+    console.log("Upgrade: Socket already upgraded. Ignoring duplicate upgrade.");
+    socket.destroy();
+    return;
+  }
   console.log("Upgrade request received:", request.url);
   
   const urlParams = new URLSearchParams(request.url.split('?')[1]);
@@ -457,6 +462,7 @@ server.on('upgrade', function upgrade(request, socket, head) {
         
         // Complete the WebSocket upgrade.
         wss.handleUpgrade(request, socket, head, function done(ws) {
+          socket.upgraded = true;
           console.log("Upgrade: WebSocket connection successfully established.");
           wss.emit('connection', ws, request);
         });
