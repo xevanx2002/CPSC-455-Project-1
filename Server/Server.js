@@ -487,7 +487,7 @@ server.on('upgrade', function upgrade(request, socket, head) {
     const expectedHash = fullSigned.split('.')[1];
     console.log("Upgrade: expectedHash:", expectedHash);
     
-    if (rawCookieSig !== expectedHash) {
+    if (rawCookieSig === expectedHash) {
       console.log("Invalid session cookie signature");
       socket.destroy();
       return;
