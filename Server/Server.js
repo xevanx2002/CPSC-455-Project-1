@@ -81,8 +81,8 @@ const beat = setInterval(function ping() {
 app.use(cookieParser());
 app.use(sessionMiddleware);
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, './client')));
-app.use(express.static('./client'));
+app.use(express.static(path.join(__dirname, './Client')));
+app.use(express.static('./Client'));
 app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
 app.use(cors({
@@ -200,7 +200,7 @@ app.get('/api/session-check', (req, res) => {
   
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client', 'index.html'));
+    res.sendFile(path.join(__dirname, 'Client', 'index.html'));
 });
 
 app.get('/', (req, res) => {
