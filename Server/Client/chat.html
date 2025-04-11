@@ -40,18 +40,26 @@
     const roomId = urlParams.get('room');
     const action = document.querySelector('#addEmoji');
     const WS_URL = 'wss://securechatproject.onrender.com';
-    let socket = new WebSocket(`${WS_URL}?token=mysecrettoken&room=${roomId}`,
-    {
-      credentials: 'include'
-    });
+
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      alert("Authentication token missing. Please log in again.");
+
+      window.location.href = '/';
+    }
+
+    let socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}&room=${roomId}`);
     
     socket.onopen = function() {
       console.log("Websocket connection established with cookies");
     };
 
+    socket.onmessage = function(event) {
+      displayMessage(event);
+    };
 
     function joinWeb() {
-      socket = new WebSocket(`${WS_URL}?token=mysecrettoken&room=${roomId}`);
+      socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}&room=${roomId}`);
       socket.onmessage = function(event) {
         displayMessage(event);
       };
@@ -62,9 +70,7 @@
       socket.close();
     }
     
-    socket.onmessage = function(event) {
-      displayMessage(event);
-    };
+   
 
     function displayMessage(event) {
       const data = JSON.parse(event.data);

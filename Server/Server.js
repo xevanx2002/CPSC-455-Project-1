@@ -2,7 +2,6 @@ import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
-import session from 'cookie-session';
 import bodyParser from 'body-parser';
 import hashFun from './src/hash.js';
 import express from 'express';
@@ -12,8 +11,7 @@ import fs from 'fs';
 import pool from './DB.js';
 import crypto from 'crypto';
 import cors from 'cors';
-import cookie from 'cookie';
-import signature from 'cookie-signature';
+import jwt from 'jsonwebtoken';
 
 // Setup basic variables and Express app.
 const app = express();
@@ -22,6 +20,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads');
 const IPAddress = 'ip goes here'; // Adjust as needed.
+
+// JWT secret (replace with a secure, randomly generated value in production)
+const jwtSecret = 'myJWTSecret';
 
 // Trust the proxy (for Render).
 app.set('trust proxy', 1);
@@ -37,21 +38,6 @@ const server = app.listen(PORT, () => {
 //   cert: fs.readFileSync('./certs/cert.pem')
 // };
 
-// Configure cookie-session middleware.
-const sessionSecret = '622ce618f28e8182d5d8b35395b90195ae4de8ff6b45bb46adb98ada0647b600';
-const sessionMiddleware = session({
-  secret: sessionSecret,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: true,            // Set to true for HTTPS.
-    httpOnly: true,
-    sameSite: 'none',        // For cross-site usage; adjust if on the same domain.
-    path: '/',
-    maxAge: 24 * 60 * 60 * 1000 // 1 day expiration.
-  }
-});
-
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -63,7 +49,6 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 app.use(cookieParser());
-app.use(sessionMiddleware);
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, './Client')));
 app.use(express.static('./Client'));
@@ -73,12 +58,30 @@ app.use(cors({
   origin: 'https://securechatproject.onrender.com', 
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// For all other routes, serve the client.
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, './Client', 'index.html'));
 });
+
+/* --------- Helper Middleware for JWT Verification on HTTP Endpoints --------- */
+function verifyJWT(req, res, next) {
+  // Expect the JWT in the Authorization header as "Bearer <token>"
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ success: false, message: "Missing Authorization header" });
+  }
+  const token = authHeader.split(' ')[1];
+  jwt.verify(token, jwtSecret, (err, decoded) => {
+    if (err) {
+      return res.status(401).json({ success: false, message: "Invalid token" });
+    }
+    req.user = decoded;
+    next();
+  });
+}
 
 /* --------- Authentication Routes --------- */
 
@@ -87,7 +90,6 @@ app.post('/signup', async (req, res) => {
   if (!username || !password) {
     return res.status(400).json({ success: false, message: "Missing username or password" });
   }
-  // Force lowercase.
   username = username.toLowerCase();
   try {
     const hashedPassword = hashFun(password, true);
@@ -139,59 +141,36 @@ app.post('/login', async (req, res) => {
       console.log("Password mismatch");
       return res.status(401).json({ success: false, message: "Invalid username or password" });
     }
-    // Save session data; cookie-session stores these in a cookie.
-    req.session.username = username;
-    req.session.userId = user.userId;
-    console.log("Session saved for:", req.session);
-    return res.json({ success: true, redirect: 'menu.html' });
+    // Issue a JWT token containing user info.
+    const token = jwt.sign({ username, userId: user.userId }, jwtSecret, { expiresIn: '1d' });
+    console.log("Login successful for:", username);
+    return res.json({ success: true, token, redirect: 'menu.html' });
   } catch (err) {
     console.error("Login error:", err);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-app.post('/index', (req, res) => {
-  let { username, password } = req.body;
-  if (!username || !password) {
-    return res.json({ success: false, message: "Missing username or password" });
-  } else {
-    username = username.toLowerCase();
-    const hashPass = hashFun(password, true);
-    console.log(`Username: ${username}`);
-    console.log(`Password Hash: ${hashPass}`);
-  }
-  req.session.username = username;
-  res.json({ success: true });
+// An endpoint to check JWT token (protected).
+app.get('/api/session-check', verifyJWT, (req, res) => {
+  return res.json({ loggedIn: true, username: req.user.username });
 });
 
-app.get('/api/session-check', (req, res) => {
-  if (req.session.username) {
-    return res.json({ loggedIn: true, username: req.session.username });
-  } else {
-    return res.status(401).json({ loggedIn: false });
-  }
-});
-  
-app.get('/chat', (req, res) => {
-  if (!req.session.username) {
-    return res.status(403).send("Access Denied. Please login.");
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// An example protected route for chat.
+// This route expects a valid JWT in the Authorization header.
+app.get('/chat', verifyJWT, (req, res) => {
+  res.sendFile(path.join(__dirname, 'Client', 'chat.html'));
 });
 
+// For any other route.
 app.get('/', (req, res) => {
   res.send("Nothing to see here...");
 });
 
-app.get('/debug-session', (req, res) => {
-  res.json({
-    session: req.session,
-    cookies: req.headers.cookie
-  });
-});
-
-app.post('/createRoom', async (req, res) => {
-  if (!req.session.username || !req.session.userId) {
+// /createRoom now protected by JWT middleware.
+app.post('/createRoom', verifyJWT, async (req, res) => {
+  // Now req.user holds the decoded JWT payload.
+  if (!req.user || !req.user.userId) {
     return res.status(403).json({ success: false, message: "Not logged in" });
   }
   let { target } = req.body;
@@ -205,7 +184,7 @@ app.post('/createRoom', async (req, res) => {
       return res.status(404).json({ success: false, message: "Target user not found" });
     }
     const targetUser = rows[0];
-    const currentUserId = req.session.userId;
+    const currentUserId = req.user.userId;
     const [roomRows] = await pool.query(
       "SELECT ru.roomId FROM room_users ru WHERE ru.userId IN (?, ?) GROUP BY ru.roomId HAVING COUNT(DISTINCT ru.userId) = 2",
       [currentUserId, targetUser.userId]
@@ -258,7 +237,7 @@ async function getRoomForUser(roomId, userId) {
 /* --------- WebSocket Server Setup --------- */
 const wss = new WebSocketServer({ server });
 const clients = new Set();
-const rooms = new Map(); // In-memory map for active rooms
+const wsRooms = new Map(); // in-memory map for active rooms
 let dataMap = new Map();
 
 function onSocketError(err) {
@@ -278,27 +257,26 @@ const beat = setInterval(function ping() {
 }, 30000);
 
 wss.on('connection', (ws, request) => {
-  if (!request.session || !request.session.username) {
-    console.error("Connection error: No session data on request");
+  // WebSocket connections now rely on JWT, so request.user is set in upgrade.
+  if (!request.user || !request.user.username) {
+    console.error("Connection error: No user data in token");
     ws.close();
     return;
   }
   
-  const username = request.session.username;
+  const username = request.user.username;
   const room = request.room || { roomId: 'public', encryptionKey: null };
   
   ws.room = room;
   ws.username = username;
   clients.add(ws);
   
-  if (!rooms.has(room.roomId)) {
-    rooms.set(room.roomId, new Set());
+  if (!wsRooms.has(room.roomId)) {
+    wsRooms.set(room.roomId, new Set());
   }
-  rooms.get(room.roomId).add(ws);
+  wsRooms.get(room.roomId).add(ws);
   
   ws.connected = true;
-  
-  // Debug: Log that the connection has been made.
   console.log(`WebSocket connected: user ${username} in room ${room.roomId}`);
   
   // Load chat history for the room.
@@ -333,6 +311,7 @@ wss.on('connection', (ws, request) => {
   })();
   
   ws.on('pong', () => { ws.connected = true; });
+  
   ws.on('error', (err) => {
     console.error("WebSocket error:", err);
   });
@@ -374,7 +353,7 @@ wss.on('connection', (ws, request) => {
         date: metadata.date
       };
       
-      rooms.get(room.roomId).forEach(client => {
+      wsRooms.get(room.roomId).forEach(client => {
         if (client.readyState === client.OPEN) {
           client.send(JSON.stringify(fileData));
         }
@@ -395,7 +374,7 @@ wss.on('connection', (ws, request) => {
     if (jsonCheck) {
       if (parsed.type === 'message') {
         console.log(`Message from ${username} in room ${room.roomId}: ${parsed.data}`);
-        rooms.get(room.roomId).forEach(client => {
+        wsRooms.get(room.roomId).forEach(client => {
           if (client.readyState === client.OPEN) {
             client.send(JSON.stringify({
               type: 'message',
@@ -430,108 +409,59 @@ wss.on('connection', (ws, request) => {
   ws.on('close', () => {
     console.log(`${username} disconnected from room ${room.roomId}`);
     clients.delete(ws);
-    if (rooms.has(room.roomId)) {
-      rooms.get(room.roomId).delete(ws);
-      if (rooms.get(room.roomId).size === 0) {
-        rooms.delete(room.roomId);
+    if (wsRooms.has(room.roomId)) {
+      wsRooms.get(room.roomId).delete(ws);
+      if (wsRooms.get(room.roomId).size === 0) {
+        wsRooms.delete(room.roomId);
       }
     }
   });
 });
 
-// --- Helper function to decode Base64 session data ---
-function decodeSession(rawValue) {
-  try {
-    const jsonStr = Buffer.from(rawValue, 'base64').toString('utf8');
-    return JSON.parse(jsonStr);
-  } catch (err) {
-    console.error("Error decoding session:", err);
-    return null;
-  }
-}
-
-// --- WebSocket Upgrade Handler: Manually Extract and Validate Cookie-Session Data ---
+/* --------- WebSocket Upgrade Handler using JWT --------- */
 server.on('upgrade', function upgrade(request, socket, head) {
   console.log("Upgrade request received:", request.url);
-  console.log("Upgrade: Incoming cookie header:", request.headers.cookie);
   
-  // Parse cookies from the request header.
-  const cookies = cookie.parse(request.headers.cookie || '');
-  console.log("Upgrade: Parsed cookies:", cookies);
-  
-  if (!cookies.session) {
-    console.log("Upgrade: No session cookie found");
-    socket.destroy();
-    return;
-  }
-  
-  const rawCookie = cookies['session'];       // Base64 encoded session data.
-  const rawCookieSig = cookies['session.sig'];  // The stored session signature.
-  
-  console.log("Upgrade: rawCookie:", rawCookie);
-  console.log("Upgrade: rawCookieSig:", rawCookieSig);
-  
-  if (!rawCookie || !rawCookieSig) {
-    console.log("Upgrade: Missing session cookie or signature");
-    socket.destroy();
-    return;
-  }
-  
-  // Compute the expected full signature using our secret.
-  const secretBuffer = Buffer.from(sessionSecret, 'utf8');
-  const fullSigned = signature.sign(rawCookie, sessionSecret);
-  // Extract the hash portion (after the "s:" prefix or period).
-  let expectedHash = fullSigned.split('.')[1];
-
-  expectedHash = expectedHash.replace(/\+/g, '-').replace(/\//g, '_');
-  console.log("Upgrade: Computed expectedHash:", expectedHash);
-  
-  if (rawCookieSig !== expectedHash) {
-    console.log("Upgrade: Invalid session cookie signature");
-    socket.destroy();
-    return;
-  }
-  
-  // Decode the Base64-encoded session data.
-  const sessionData = decodeSession(rawCookie);
-  if (!sessionData) {
-    console.log("Upgrade: Failed to decode session data");
-    socket.destroy();
-    return;
-  }
-  console.log("Upgrade: Decoded session data:", sessionData);
-  
-  // Attach session data to the upgrade request.
-  request.session = sessionData;
-  
-  // Validate query parameters (e.g., room).
   const urlParams = new URLSearchParams(request.url.split('?')[1]);
+  const token = urlParams.get('token');
   const roomId = urlParams.get('room');
-  if (!roomId) {
-    console.log("Upgrade: Missing room parameter");
+  
+  if (!token || !roomId) {
+    console.log("Upgrade: Missing token or room parameter");
     socket.destroy();
     return;
   }
   
-  // Validate that the user is allowed in the room.
-  getRoomForUser(roomId, request.session.userId)
-    .then(roomRecord => {
-      if (!roomRecord) {
-        console.log(`Upgrade: User ${request.session.userId} is not authorized for room ${roomId}`);
-        socket.destroy();
-        return;
-      }
-      console.log("Upgrade: User is authorized for room", roomId, "with roomRecord:", roomRecord);
-      request.room = roomRecord;
-      
-      // Complete the WebSocket upgrade.
-      wss.handleUpgrade(request, socket, head, function done(ws) {
-        console.log("Upgrade: WebSocket connection successfully established.");
-        wss.emit('connection', ws, request);
-      });
-    })
-    .catch(err => {
-      console.error("Upgrade: Error during room validation:", err);
+  jwt.verify(token, jwtSecret, (err, decoded) => {
+    if (err) {
+      console.log("Upgrade: JWT verification error:", err);
       socket.destroy();
-    });
+      return;
+    }
+    console.log("Upgrade: Decoded JWT:", decoded);
+    // Attach decoded JWT data to request.user.
+    request.user = decoded;
+    
+    // Validate that the user is allowed in the room.
+    getRoomForUser(roomId, decoded.userId)
+      .then(roomRecord => {
+        if (!roomRecord) {
+          console.log(`Upgrade: User ${decoded.userId} is not authorized for room ${roomId}`);
+          socket.destroy();
+          return;
+        }
+        console.log("Upgrade: User is authorized for room", roomId, "with roomRecord:", roomRecord);
+        request.room = roomRecord;
+        
+        // Complete the WebSocket upgrade.
+        wss.handleUpgrade(request, socket, head, function done(ws) {
+          console.log("Upgrade: WebSocket connection successfully established.");
+          wss.emit('connection', ws, request);
+        });
+      })
+      .catch(err => {
+        console.error("Upgrade: Error during room validation:", err);
+        socket.destroy();
+      });
+  });
 });
