@@ -23,7 +23,7 @@ const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads');
 const IPAddress = 'ip goes here'; // Adjust as needed.
 
-// If behind a proxy (e.g. Render), trust the proxy.
+// Trust the proxy (for Render).
 app.set('trust proxy', 1);
 
 // Create the HTTP server.
@@ -31,23 +31,24 @@ const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// If you use HTTPS, you can enable this below (currently commented out).
-const options = {
-  key: fs.readFileSync('./certs/key.pem'),
-  cert: fs.readFileSync('./certs/cert.pem')
-};
+// HTTPS options (if needed)
+// const options = {
+//   key: fs.readFileSync('./certs/key.pem'),
+//   cert: fs.readFileSync('./certs/cert.pem')
+// };
 
 // Configure cookie-session middleware.
+const sessionSecret = '622ce618f28e8182d5d8b35395b90195ae4de8ff6b45bb46adb98ada0647b600';
 const sessionMiddleware = session({
-  secret: '622ce618f28e8182d5d8b35395b90195ae4de8ff6b45bb46adb98ada0647b600',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true,
+    secure: true,            // Set to true for HTTPS.
     httpOnly: true,
-    sameSite: 'none', // Changed to 'none' for cross-site usage
+    sameSite: 'none',        // For cross-site usage; adjust if on the same domain.
     path: '/',
-    maxAge: 24 * 60 * 60 * 1000 // 1 day expiration
+    maxAge: 24 * 60 * 60 * 1000 // 1 day expiration.
   }
 });
 
@@ -76,36 +77,29 @@ app.use(cors({
 }));
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, './Client', 'index.html'));
+  res.sendFile(path.join(__dirname, './Client', 'index.html'));
 });
 
 /* --------- Authentication Routes --------- */
+
 app.post('/signup', async (req, res) => {
   let { username, password } = req.body;
-  
   if (!username || !password) {
     return res.status(400).json({ success: false, message: "Missing username or password" });
   }
-  
-  // Force lowercase username.
+  // Force lowercase.
   username = username.toLowerCase();
-  
   try {
     const hashedPassword = hashFun(password, true);
-    
-    // Check for an existing user.
     const [existingUsers] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
     if (existingUsers.length > 0) {
       return res.status(400).json({ success: false, message: "Username already exists" });
     }
-    
     const [userResult] = await pool.query('INSERT INTO users (username) VALUES (?)', [username]);
     if (!userResult.insertId) {
       return res.status(500).json({ success: false, message: "Signup failed at user insertion" });
     }
-    
     const userId = userResult.insertId;
-    
     const [authResult] = await pool.query('INSERT INTO auth (userId, password) VALUES (?, ?)', [userId, hashedPassword]);
     if (authResult.affectedRows === 1) {
       return res.json({ success: true, message: "Signup successful. Please log in." });
@@ -120,42 +114,35 @@ app.post('/signup', async (req, res) => {
 
 app.post('/login', async (req, res) => {
   let { username, password } = req.body;
-  
   if (!username || !password) {
     console.log("Missing credentials");
     return res.status(400).json({ success: false, message: "Missing username or password" });
   }
-  
   username = username.toLowerCase();
-  
   try {
     const hashedPassword = hashFun(password, true);
-    console.log(username);
-    console.log(hashedPassword);
-    
+    console.log("Login attempt for:", username);
+    console.log("Hashed password:", hashedPassword);
     const [users] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
     if (users.length === 0) {
       console.log("User not found");
       return res.status(401).json({ success: false, message: "Invalid username or password" });
     }
     const user = users[0];
-    
     const [authRecords] = await pool.query('SELECT * FROM auth WHERE userId = ?', [user.userId]);
     if (authRecords.length === 0) {
       console.log("Auth record missing");
       return res.status(401).json({ success: false, message: "Invalid username or password" });
     }
     const authRecord = authRecords[0];
-    
     if (hashedPassword !== authRecord.password) {
       console.log("Password mismatch");
       return res.status(401).json({ success: false, message: "Invalid username or password" });
     }
-    
-    // Save session data (cookie-session stores this in the cookie).
+    // Save session data; cookie-session stores these in a cookie.
     req.session.username = username;
     req.session.userId = user.userId;
-    console.log('Session saved for:', req.session);
+    console.log("Session saved for:", req.session);
     return res.json({ success: true, redirect: 'menu.html' });
   } catch (err) {
     console.error("Login error:", err);
@@ -204,7 +191,6 @@ app.get('/debug-session', (req, res) => {
 });
 
 app.post('/createRoom', async (req, res) => {
-  // Ensure the user is logged in.
   if (!req.session.username || !req.session.userId) {
     return res.status(403).json({ success: false, message: "Not logged in" });
   }
@@ -220,10 +206,9 @@ app.post('/createRoom', async (req, res) => {
     }
     const targetUser = rows[0];
     const currentUserId = req.session.userId;
-    const targetUserId = targetUser.userId;
     const [roomRows] = await pool.query(
       "SELECT ru.roomId FROM room_users ru WHERE ru.userId IN (?, ?) GROUP BY ru.roomId HAVING COUNT(DISTINCT ru.userId) = 2",
-      [currentUserId, targetUserId]
+      [currentUserId, targetUser.userId]
     );
     let roomId;
     if (roomRows.length > 0) {
@@ -233,7 +218,7 @@ app.post('/createRoom', async (req, res) => {
       const [roomResult] = await pool.query("INSERT INTO rooms (encryptionKey) VALUES (?)", [roomKey]);
       roomId = roomResult.insertId;
       await pool.query("INSERT INTO room_users (roomId, userId) VALUES (?, ?)", [roomId, currentUserId]);
-      await pool.query("INSERT INTO room_users (roomId, userId) VALUES (?, ?)", [roomId, targetUserId]);
+      await pool.query("INSERT INTO room_users (roomId, userId) VALUES (?, ?)", [roomId, targetUser.userId]);
     }
     return res.json({ success: true, roomId });
   } catch (err) {
@@ -282,9 +267,9 @@ function onSocketError(err) {
 
 const beat = setInterval(function ping() {
   wss.clients.forEach(function each(ws) {
-    console.log(`Heart is still beating`);
+    console.log("Heartbeat: checking client connection");
     if (ws.connected === false) {
-      console.log(`Heart has stopped beating`);
+      console.log("Heartbeat: client has stopped responding—terminating");
       return ws.terminate();
     }
     ws.connected = false;
@@ -293,19 +278,19 @@ const beat = setInterval(function ping() {
 }, 30000);
 
 wss.on('connection', (ws, request) => {
-  // Ensure session data exists.
   if (!request.session || !request.session.username) {
-    console.error("No session data on request");
+    console.error("Connection error: No session data on request");
     ws.close();
     return;
   }
+  
   const username = request.session.username;
   const room = request.room || { roomId: 'public', encryptionKey: null };
-
+  
   ws.room = room;
   ws.username = username;
   clients.add(ws);
-
+  
   if (!rooms.has(room.roomId)) {
     rooms.set(room.roomId, new Set());
   }
@@ -313,7 +298,10 @@ wss.on('connection', (ws, request) => {
   
   ws.connected = true;
   
-  // Load and send chat history for the room.
+  // Debug: Log that the connection has been made.
+  console.log(`WebSocket connected: user ${username} in room ${room.roomId}`);
+  
+  // Load chat history for the room.
   (async () => {
     try {
       const [messages] = await pool.query(
@@ -326,7 +314,7 @@ wss.on('connection', (ws, request) => {
           try {
             content = decryptMessage(message.content, room.encryptionKey);
           } catch (e) {
-            console.error("Decryption error:", e);
+            console.error("Decryption error for message:", e);
           }
         }
         ws.send(JSON.stringify({
@@ -345,10 +333,12 @@ wss.on('connection', (ws, request) => {
   })();
   
   ws.on('pong', () => { ws.connected = true; });
-  ws.on('error', console.error);
+  ws.on('error', (err) => {
+    console.error("WebSocket error:", err);
+  });
   
   ws.on('message', async (newData) => {
-    console.log("Received data");
+    console.log("Received data on WebSocket");
     const str = newData.toString('utf8');
     let jsonCheck = false;
     let parsed;
@@ -356,27 +346,25 @@ wss.on('connection', (ws, request) => {
       parsed = JSON.parse(str);
       jsonCheck = true;
     } catch (err) {
-      console.log("Data is not valid JSON");
+      console.log("Message is not valid JSON:", err);
     }
     
-    // Handle file metadata.
     if (jsonCheck && parsed.type === 'file') {
       dataMap.set(ws, parsed);
       return;
     }
     
-    // Handle binary file data.
     if (!jsonCheck && Buffer.isBuffer(newData)) {
       console.log("Processing file binary data");
       const metadata = dataMap.get(ws);
       if (!metadata) {
-        console.log("No file metadata found");
+        console.log("No file metadata found for binary data");
         return;
       }
       const newFileName = metadata.fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_');
       const filePath = path.join(uploadDir, newFileName);
       fs.writeFileSync(filePath, newData);
-      console.log(`File saved: ${filePath}`);
+      console.log(`File saved to ${filePath}`);
       const fileURL = `https://${IPAddress}:8080/uploads/${newFileName}`;
       const fileData = {
         type: 'file',
@@ -386,7 +374,6 @@ wss.on('connection', (ws, request) => {
         date: metadata.date
       };
       
-      // Broadcast the file message.
       rooms.get(room.roomId).forEach(client => {
         if (client.readyState === client.OPEN) {
           client.send(JSON.stringify(fileData));
@@ -405,10 +392,9 @@ wss.on('connection', (ws, request) => {
       return;
     }
     
-    // Process text messages.
     if (jsonCheck) {
       if (parsed.type === 'message') {
-        console.log(`Room: ${room.roomId} | (${parsed.date}) ${username}: ${parsed.data}`);
+        console.log(`Message from ${username} in room ${room.roomId}: ${parsed.data}`);
         rooms.get(room.roomId).forEach(client => {
           if (client.readyState === client.OPEN) {
             client.send(JSON.stringify({
@@ -424,7 +410,7 @@ wss.on('connection', (ws, request) => {
           try {
             encryptedText = encryptMessage(parsed.data, room.encryptionKey);
           } catch (e) {
-            console.error("Encryption error:", e);
+            console.error("Encryption error for message:", e);
           }
         }
         try {
@@ -455,61 +441,94 @@ wss.on('connection', (ws, request) => {
 
 // --- Helper function to decode Base64 session data ---
 function decodeSession(rawValue) {
-    try {
-      const jsonStr = Buffer.from(rawValue, 'base64').toString('utf8');
-      return JSON.parse(jsonStr);
-    } catch (err) {
-      console.error("Error decoding session:", err);
-      return null;
-    }
+  try {
+    const jsonStr = Buffer.from(rawValue, 'base64').toString('utf8');
+    return JSON.parse(jsonStr);
+  } catch (err) {
+    console.error("Error decoding session:", err);
+    return null;
   }
-  
+}
 
-// --- WebSocket Upgrade Handler: Manually Extract Cookie-Session Data ---
+// --- WebSocket Upgrade Handler: Manually Extract and Validate Cookie-Session Data ---
 server.on('upgrade', function upgrade(request, socket, head) {
-  // First parse the cookies manually to ensure they exist
+  console.log("Upgrade request received:", request.url);
+  console.log("Upgrade: Incoming cookie header:", request.headers.cookie);
+  
+  // Parse cookies from the request header.
   const cookies = cookie.parse(request.headers.cookie || '');
+  console.log("Upgrade: Parsed cookies:", cookies);
+  
   if (!cookies.session) {
-    console.log("No session cookie found");
+    console.log("Upgrade: No session cookie found");
     socket.destroy();
     return;
   }
-
-  // Then use the session middleware
-  sessionMiddleware(request, {}, () => {
-    if (!request.session || !request.session.username) {
-      console.log("No session data after middleware processing");
-      console.log("Request session:", request.session);
-      socket.destroy();
-      return;
-    }
-
-    // Rest of your upgrade logic...
-    const urlParams = new URLSearchParams(request.url.split('?')[1]);
-    const roomId = urlParams.get('room');
-    if (!roomId) {
-      console.log("Missing room parameter");
-      socket.destroy();
-      return;
-    }
-
-    getRoomForUser(roomId, request.session.userId)
-      .then(roomRecord => {
-        if (!roomRecord) {
-          console.log("User is not authorized for this room");
-          socket.destroy();
-          return;
-        }
-        request.room = roomRecord;
-        
-        wss.handleUpgrade(request, socket, head, function done(ws) {
-          wss.emit('connection', ws, request);
-        });
-      })
-      .catch(err => {
-        console.error("Error during room validation:", err);
-        socket.destroy();
-      });
-  });
-});
   
+  const rawCookie = cookies['session'];       // Base64 encoded session data.
+  const rawCookieSig = cookies['session.sig'];  // The stored session signature.
+  
+  console.log("Upgrade: rawCookie:", rawCookie);
+  console.log("Upgrade: rawCookieSig:", rawCookieSig);
+  
+  if (!rawCookie || !rawCookieSig) {
+    console.log("Upgrade: Missing session cookie or signature");
+    socket.destroy();
+    return;
+  }
+  
+  // Compute the expected full signature using our secret.
+  const fullSigned = signature.sign(rawCookie, sessionSecret);
+  // Extract the hash portion (after the "s:" prefix or period).
+  const expectedHash = fullSigned.split('.')[1];
+  console.log("Upgrade: Computed expectedHash:", expectedHash);
+  
+  if (rawCookieSig !== expectedHash) {
+    console.log("Upgrade: Invalid session cookie signature");
+    socket.destroy();
+    return;
+  }
+  
+  // Decode the Base64-encoded session data.
+  const sessionData = decodeSession(rawCookie);
+  if (!sessionData) {
+    console.log("Upgrade: Failed to decode session data");
+    socket.destroy();
+    return;
+  }
+  console.log("Upgrade: Decoded session data:", sessionData);
+  
+  // Attach session data to the upgrade request.
+  request.session = sessionData;
+  
+  // Validate query parameters (e.g., room).
+  const urlParams = new URLSearchParams(request.url.split('?')[1]);
+  const roomId = urlParams.get('room');
+  if (!roomId) {
+    console.log("Upgrade: Missing room parameter");
+    socket.destroy();
+    return;
+  }
+  
+  // Validate that the user is allowed in the room.
+  getRoomForUser(roomId, request.session.userId)
+    .then(roomRecord => {
+      if (!roomRecord) {
+        console.log(`Upgrade: User ${request.session.userId} is not authorized for room ${roomId}`);
+        socket.destroy();
+        return;
+      }
+      console.log("Upgrade: User is authorized for room", roomId, "with roomRecord:", roomRecord);
+      request.room = roomRecord;
+      
+      // Complete the WebSocket upgrade.
+      wss.handleUpgrade(request, socket, head, function done(ws) {
+        console.log("Upgrade: WebSocket connection successfully established.");
+        wss.emit('connection', ws, request);
+      });
+    })
+    .catch(err => {
+      console.error("Upgrade: Error during room validation:", err);
+      socket.destroy();
+    });
+});
