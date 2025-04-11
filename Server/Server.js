@@ -1,6 +1,8 @@
 import { WebSocketServer } from 'ws';
 import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
+import cookie from 'cookie';
+import signature from 'cookie-signature';
 import cookieParser from 'cookie-parser';
 import session from 'cookie-session';
 import bodyParser from 'body-parser';
@@ -454,6 +456,52 @@ wss.on('connection', (ws, request) => {
 });
 
 server.on('upgrade', function upgrade(request, socket, head) {
+    // Parse cookies from the header
+    const cookies = cookie.parse(request.headers.cookie || '');
+    const rawCookie = cookies['session']; // use your cookie name if different
+
+    if (!rawCookie) {
+        console.log("No session cookie found");
+        socket.destroy();
+        return;
+    }
+
+    // Unsign the cookie. Cookie-session typically prefixes the cookie value with 's:'
+    let sessionData;
+    if (rawCookie.startsWith('s:')) {
+        const unsigned = signature.unsign(rawCookie.slice(2), 'mySecretKey');
+        if (!unsigned) {
+        console.log("Session cookie signature invalid");
+        socket.destroy();
+        return;
+        }
+        try {
+        sessionData = JSON.parse(unsigned);
+        } catch (err) {
+        console.error("Error parsing session cookie:", err);
+        socket.destroy();
+        return;
+        }
+    } else {
+        try {
+        sessionData = JSON.parse(rawCookie);
+        } catch (err) {
+        console.error("Error parsing session cookie:", err);
+        socket.destroy();
+        return;
+        }
+    }
+
+    // Check if session data has the expected properties
+    if (!sessionData.username || !sessionData.userId) {
+        console.log("Unauthorized WebSocket request - Invalid session data");
+        socket.destroy();
+        return;
+    }
+
+
+    request.session = sessionData;
+
     const urlParams = new URLSearchParams(request.url.split('?')[1]);
     const token = urlParams.get('token');
     const roomId = urlParams.get('room'); // expecting room id
