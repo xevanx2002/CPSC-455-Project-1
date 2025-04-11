@@ -44,7 +44,7 @@ const sessionMiddleware = session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,            // Set to true for HTTPS.
+    secure: true,            // Set to true for HTTPS.
     httpOnly: true,
     sameSite: 'none',        // For cross-site usage; adjust if on the same domain.
     path: '/',
@@ -478,9 +478,12 @@ server.on('upgrade', function upgrade(request, socket, head) {
   }
   
   // Compute the expected full signature using our secret.
+  const secretBuffer = Buffer.from(sessionSecret, 'hex');
   const fullSigned = signature.sign(rawCookie, sessionSecret);
   // Extract the hash portion (after the "s:" prefix or period).
-  const expectedHash = fullSigned.split('.')[1];
+  let expectedHash = fullSigned.split('.')[1];
+
+  computedHash = computedHash.replace(/\+/g, '-').replace(/\//g, '_');
   console.log("Upgrade: Computed expectedHash:", expectedHash);
   
   if (rawCookieSig !== expectedHash) {
