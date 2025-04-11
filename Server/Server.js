@@ -71,7 +71,8 @@ app.use(limiter);
 app.use(cors({
   origin: 'https://securechatproject.onrender.com', 
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 
 app.get('*', (req, res) => {
@@ -466,14 +467,24 @@ function decodeSession(rawValue) {
 
 // --- WebSocket Upgrade Handler: Manually Extract Cookie-Session Data ---
 server.on('upgrade', function upgrade(request, socket, head) {
-  // Use the same session middleware as HTTP requests
+  // First parse the cookies manually to ensure they exist
+  const cookies = cookie.parse(request.headers.cookie || '');
+  if (!cookies.session) {
+    console.log("No session cookie found");
+    socket.destroy();
+    return;
+  }
+
+  // Then use the session middleware
   sessionMiddleware(request, {}, () => {
     if (!request.session || !request.session.username) {
-      console.error("No session data on request");
+      console.log("No session data after middleware processing");
+      console.log("Request session:", request.session);
       socket.destroy();
       return;
     }
 
+    // Rest of your upgrade logic...
     const urlParams = new URLSearchParams(request.url.split('?')[1]);
     const roomId = urlParams.get('room');
     if (!roomId) {
@@ -482,7 +493,6 @@ server.on('upgrade', function upgrade(request, socket, head) {
       return;
     }
 
-    // Verify room access
     getRoomForUser(roomId, request.session.userId)
       .then(roomRecord => {
         if (!roomRecord) {
