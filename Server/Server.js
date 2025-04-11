@@ -483,7 +483,7 @@ server.on('upgrade', function upgrade(request, socket, head) {
   // Extract the hash portion (after the "s:" prefix or period).
   let expectedHash = fullSigned.split('.')[1];
 
-  expectedHash = expectedHashHash.replace(/\+/g, '-').replace(/\//g, '_');
+  expectedHash = expectedHash.replace(/\+/g, '-').replace(/\//g, '_');
   console.log("Upgrade: Computed expectedHash:", expectedHash);
   
   if (rawCookieSig !== expectedHash) {
