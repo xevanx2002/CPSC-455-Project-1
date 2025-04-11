@@ -39,7 +39,7 @@ const options = {
 
 // Configure cookie-session middleware.
 const sessionMiddleware = session({
-  secret: 'mySecretKey', 
+  secret: '622ce618f28e8182d5d8b35395b90195ae4de8ff6b45bb46adb98ada0647b600', 
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -481,7 +481,7 @@ server.on('upgrade', function upgrade(request, socket, head) {
     }
     
     // Compute the full signed cookie value.
-    const fullSigned = signature.sign(rawCookie, 'mySecretKey');
+    const fullSigned = signature.sign(rawCookie, '622ce618f28e8182d5d8b35395b90195ae4de8ff6b45bb46adb98ada0647b600');
     console.log("Upgrade: fullSigned:", fullSigned);
     // Extract the signature hash (the part after the period).
     const expectedHash = fullSigned.split('.')[1];
