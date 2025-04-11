@@ -64,8 +64,8 @@ if (!fs.existsSync(uploadDir)) {
 app.use(cookieParser());
 app.use(sessionMiddleware);
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, './client')));
-app.use(express.static('./client'));
+app.use(express.static(path.join(__dirname, './Client')));
+app.use(express.static('./Client'));
 app.use('/uploads', express.static(uploadDir));
 app.use(limiter);
 app.use(cors({
@@ -73,6 +73,9 @@ app.use(cors({
   credentials: true
 }));
 
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, './Client', 'index.html'));
+});
 
 /* --------- Authentication Routes --------- */
 app.post('/signup', async (req, res) => {
