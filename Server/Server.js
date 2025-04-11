@@ -453,78 +453,83 @@ wss.on('connection', (ws, request) => {
 
 // --- Helper function to decode Base64 session data ---
 function decodeSession(rawValue) {
-  try {
-    const jsonStr = Buffer.from(rawValue, 'base64').toString('utf8');
-    return JSON.parse(jsonStr);
-  } catch (err) {
-    console.error("Error decoding session:", err);
-    return null;
+    try {
+      const jsonStr = Buffer.from(rawValue, 'base64').toString('utf8');
+      return JSON.parse(jsonStr);
+    } catch (err) {
+      console.error("Error decoding session:", err);
+      return null;
+    }
   }
-}
+  
 
 // --- WebSocket Upgrade Handler: Manually Extract Cookie-Session Data ---
 server.on('upgrade', function upgrade(request, socket, head) {
-  // Parse cookies from the request header.
-  const cookies = cookie.parse(request.headers.cookie || '');
-  const rawCookie = cookies['session'];       // Base64-encoded session data.
-  const rawCookieSig = cookies['session.sig'];  // Session signature.
-
-  console.log("Upgrade: rawCookie:", rawCookie);
-  console.log("Upgrade: rawCookieSig:", rawCookieSig);
-  
-  if (!rawCookie || !rawCookieSig) {
-    console.log("Session cookie or signature not found");
-    socket.destroy();
-    return;
-  }
-  
-  // Verify the signature using the same secret used in cookie-session.
-  const expectedSig = signature.sign(rawCookie, 'mySecretKey');
-  console.log("Upgrade: expectedSig:", expectedSig);
-  
-  if (rawCookieSig !== expectedSig) {
-    console.log("Invalid session cookie signature");
-    socket.destroy();
-    return;
-  }
-  
-  // Decode the Base64-encoded session data.
-  const sessionData = decodeSession(rawCookie);
-  if (!sessionData) {
-    console.log("Failed to decode session data");
-    socket.destroy();
-    return;
-  }
-  
-  // Attach the session data to the request.
-  request.session = sessionData;
-  
-  // Validate that the required room parameter is present.
-  const urlParams = new URLSearchParams(request.url.split('?')[1]);
-  const roomId = urlParams.get('room');
-  if (!roomId) {
-    console.log("Missing room parameter");
-    socket.destroy();
-    return;
-  }
-  
-  // Optionally, verify that the user from the session is authorized for the room.
-  getRoomForUser(roomId, request.session.userId)
-    .then(roomRecord => {
-      if (!roomRecord) {
-        console.log("User is not authorized for this room");
-        socket.destroy();
-        return;
-      }
-      request.room = roomRecord;
-      
-      // Complete the WebSocket handshake.
-      wss.handleUpgrade(request, socket, head, function done(ws) {
-          wss.emit('connection', ws, request);
-      });
-    })
-    .catch(err => {
-      console.error("Error during room validation:", err);
+    // Parse cookies from the request header.
+    const cookies = cookie.parse(request.headers.cookie || '');
+    const rawCookie = cookies['session'];       // Base64-encoded session data.
+    const rawCookieSig = cookies['session.sig'];  // Session signature.
+    
+    // Debug logging: print raw cookie values.
+    console.log("Upgrade: rawCookie:", rawCookie);
+    console.log("Upgrade: rawCookieSig:", rawCookieSig);
+    
+    if (!rawCookie || !rawCookieSig) {
+      console.log("Session cookie or signature not found");
       socket.destroy();
-    });
-});
+      return;
+    }
+    
+    // Compute the full signed cookie value.
+    const fullSigned = signature.sign(rawCookie, 'mySecretKey');
+    // Extract the signature hash (the part after the period).
+    const expectedHash = fullSigned.split('.')[1];
+    console.log("Upgrade: expectedHash:", expectedHash);
+    
+    if (rawCookieSig !== expectedHash) {
+      console.log("Invalid session cookie signature");
+      socket.destroy();
+      return;
+    }
+    
+    // Decode the Base64-encoded session data.
+    const sessionData = decodeSession(rawCookie);
+    if (!sessionData) {
+      console.log("Failed to decode session data");
+      socket.destroy();
+      return;
+    }
+    
+    // Attach the session data to the request.
+    request.session = sessionData;
+    
+    // Validate that the required room parameter is present.
+    const urlParams = new URLSearchParams(request.url.split('?')[1]);
+    const roomId = urlParams.get('room');
+    if (!roomId) {
+      console.log("Missing room parameter");
+      socket.destroy();
+      return;
+    }
+    
+    // Optionally, verify that the user is authorized for the room.
+    getRoomForUser(roomId, request.session.userId)
+      .then(roomRecord => {
+        if (!roomRecord) {
+          console.log("User is not authorized for this room");
+          socket.destroy();
+          return;
+        }
+        request.room = roomRecord;
+        
+        // Complete the WebSocket handshake.
+        wss.handleUpgrade(request, socket, head, function done(ws) {
+            wss.emit('connection', ws, request);
+        });
+      })
+      .catch(err => {
+        console.error("Error during room validation:", err);
+        socket.destroy();
+      });
+  });
+  
