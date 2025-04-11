@@ -482,6 +482,7 @@ server.on('upgrade', function upgrade(request, socket, head) {
     
     // Compute the full signed cookie value.
     const fullSigned = signature.sign(rawCookie, 'mySecretKey');
+    console.log("Upgrade: fullSigned:", fullSigned);
     // Extract the signature hash (the part after the period).
     const expectedHash = fullSigned.split('.')[1];
     console.log("Upgrade: expectedHash:", expectedHash);
