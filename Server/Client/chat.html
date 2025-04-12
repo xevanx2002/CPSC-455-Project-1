@@ -17,8 +17,10 @@
     </main>
     <!-- Use a div instead of footer so .chat-input-area styles apply -->
     <div class="chat-input-area">
-      <input type="text" id="messageInput" placeholder="Type your message...">
-      <button id="sendMess" onclick="sendMessage()">Send</button>
+      <form>
+        <input type="text" id="messageInput" placeholder="Type your message...">
+        <button id="sendMess" onclick="sendMessage()">Send</button>
+      </form>
       <button id="addEmoji">😀</button>
       <input type="file" id="gotFile"
              accept=".doc, .docx, .xml, application/msword,
