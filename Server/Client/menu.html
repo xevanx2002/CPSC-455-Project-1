@@ -119,7 +119,8 @@
       var token = checkAuth();
       fetch('/searchUsers?query=' + encodeURIComponent(query), {
         headers: {
-          'Authorization': 'Bearer ' + token
+          'Authorization': 'Bearer ' + token,
+          'Cache-Control' : 'no-cache'
         }
       })
       .then(function(response) {
@@ -158,7 +159,8 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
+          'Authorization': 'Bearer ' + token,
+          'Cache-Control' : 'no-cache'
         },
         body: JSON.stringify({ username: username })
       })
@@ -183,7 +185,8 @@
       var token = checkAuth();
       fetch('/getFriendRequests', {
         headers: {
-          'Authorization': 'Bearer ' + token
+          'Authorization': 'Bearer ' + token,
+          'Cache-Control' : 'no-cache'
         }
       })
       .then(function(response) {
@@ -230,7 +233,8 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
+          'Authorization': 'Bearer ' + token,
+          'Cache-Control' : 'no-cache'
         },
         body: JSON.stringify({ from: fromUser })
       })
