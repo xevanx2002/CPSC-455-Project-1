@@ -61,10 +61,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// For all other routes, serve the client.
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, './Client', 'index.html'));
-});
 
 /* --------- Helper Middleware for JWT Verification on HTTP Endpoints --------- */
 function verifyJWT(req, res, next) {
@@ -619,4 +615,9 @@ server.on('upgrade', function upgrade(request, socket, head) {
         socket.destroy();
       });
   });
+  // Catch all routes, serve the client.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, './Client', 'index.html'));
+});
+
 });
