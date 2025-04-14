@@ -47,39 +47,47 @@
 
     // Load the friend list from the server
     function loadFriends() {
-      var token = checkAuth();
-      fetch('/getFriends', {
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Cache-Control' : 'no-cache'
-        }
-      })
-      .then(function(response) {
-        return response.json();
-      })
-      .then(function(data) {
-        var ul = document.getElementById('friendsUl');
-        ul.innerHTML = '';
-        if (data.friends && data.friends.length) {
-          data.friends.forEach(function(friend) {
-            var li = document.createElement('li');
-            li.textContent = friend.username;
-            li.style.cursor = 'pointer';
-            // Clicking a friend opens the chat room with that friend
-            li.addEventListener('click', function() {
-              startChat(friend.username);
-            });
-            ul.appendChild(li);
-          });
-        } else {
-          ul.innerHTML = '<li>No friends added yet</li>';
-        }
-      })
-      .catch(function(err) {
-        console.error(err);
-        alert('Error fetching friends list.');
-      });
+  var token = checkAuth();
+  fetch('/getFriends', {
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Cache-Control' : 'no-cache'
     }
+  })
+  .then(function(response) {
+    return response.text();  // Convert to text instead of JSON directly.
+  })
+  .then(function(text) {
+    console.log("Raw /getFriends response:", text);
+    var trimmed = text.trim();
+    if (!trimmed) {
+      throw new Error("Empty response");
+    }
+    return JSON.parse(trimmed);  // Parse the trimmed text as JSON.
+  })
+  .then(function(data) {
+    var ul = document.getElementById('friendsUl');
+    ul.innerHTML = '';
+    if (data.friends && data.friends.length) {
+      data.friends.forEach(function(friend) {
+        var li = document.createElement('li');
+        li.textContent = friend.username;
+        li.style.cursor = 'pointer';
+        li.addEventListener('click', function() {
+          startChat(friend.username);
+        });
+        ul.appendChild(li);
+      });
+    } else {
+      ul.innerHTML = '<li>No friends added yet</li>';
+    }
+  })
+  .catch(function(err) {
+    console.error("loadFriends error:", err);
+    alert('Error fetching friends list.');
+  });
+}
+
 
     // Open a chat room with the target friend
     function startChat(target) {
