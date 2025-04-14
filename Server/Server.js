@@ -162,11 +162,6 @@ app.get('/chat', verifyJWT, (req, res) => {
   res.sendFile(path.join(__dirname, 'Client', 'chat.html'));
 });
 
-// For any other route.
-app.get('/', (req, res) => {
-  res.send("Nothing to see here...");
-});
-
 // /createRoom now protected by JWT middleware.
 app.post('/createRoom', verifyJWT, async (req, res) => {
   // Now req.user holds the decoded JWT payload.
@@ -203,6 +198,154 @@ app.post('/createRoom', verifyJWT, async (req, res) => {
   } catch (err) {
     console.error("Error in createRoom:", err);
     return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+/* --------- Friend Management Endpoints --------- */
+
+// GET /getFriends - returns the current user's friends list
+app.get('/getFriends', verifyJWT, async (req, res) => {
+  const currentUserId = req.user.userId;
+  try {
+    const [rows] = await pool.query(
+      "SELECT username FROM users WHERE userId IN (SELECT friendId FROM friends WHERE userId = ?) UNION SELECT username FROM users WHERE userId IN (SELECT userId FROM friends WHERE friendId = ?)",
+      [currentUserId, currentUserId]
+    );
+    res.json({ friends: rows });
+  } catch (err) {
+    console.error("Error fetching friends:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// GET /searchUsers - searches for users by query (excluding the current user)
+app.get('/searchUsers', verifyJWT, async (req, res) => {
+  const query = req.query.query;
+  const currentUserId = req.user.userId;
+  try {
+    const [rows] = await pool.query(
+      "SELECT username, userId FROM users WHERE username LIKE ? AND userId <> ?",
+      ['%' + query + '%', currentUserId]
+    );
+    res.json({ users: rows });
+  } catch (err) {
+    console.error("Error searching users:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// POST /sendFriendRequest - sends a friend request to a specified user
+app.post('/sendFriendRequest', verifyJWT, async (req, res) => {
+  const { username } = req.body;
+  if (!username) {
+    return res.status(400).json({ success: false, message: "Username required" });
+  }
+  const currentUserId = req.user.userId;
+  try {
+    const [rows] = await pool.query("SELECT userId FROM users WHERE username = ?", [username.toLowerCase()]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    const friendUserId = rows[0].userId;
+    
+    // Check if a friend request is already pending.
+    const [existingReq] = await pool.query(
+      "SELECT * FROM friend_requests WHERE fromUserId = ? AND toUserId = ? AND status = 'pending'",
+      [currentUserId, friendUserId]
+    );
+    if (existingReq.length > 0) {
+      return res.status(400).json({ success: false, message: "Friend request already sent" });
+    }
+    
+    // Check if the users are already friends.
+    const [existingFriends] = await pool.query(
+      "SELECT * FROM friends WHERE (userId = ? AND friendId = ?) OR (userId = ? AND friendId = ?)",
+      [currentUserId, friendUserId, friendUserId, currentUserId]
+    );
+    if (existingFriends.length > 0) {
+      return res.status(400).json({ success: false, message: "User is already your friend" });
+    }
+    
+    // Insert the friend request.
+    await pool.query(
+      "INSERT INTO friend_requests (fromUserId, toUserId, status) VALUES (?, ?, 'pending')",
+      [currentUserId, friendUserId]
+    );
+    res.json({ success: true, message: "Friend request sent." });
+  } catch (err) {
+    console.error("Error sending friend request:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// GET /getFriendRequests - returns incoming friend requests for the current user
+app.get('/getFriendRequests', verifyJWT, async (req, res) => {
+  const currentUserId = req.user.userId;
+  try {
+    // Retrieve pending friend requests where the current user is the recipient.
+    const [rows] = await pool.query(
+      "SELECT u.username FROM friend_requests fr JOIN users u ON fr.fromUserId = u.userId WHERE fr.toUserId = ? AND fr.status = 'pending'",
+      [currentUserId]
+    );
+    res.json({ requests: rows });
+  } catch (err) {
+    console.error("Error fetching friend requests:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// POST /acceptFriendRequest - accepts a friend request from another user
+app.post('/acceptFriendRequest', verifyJWT, async (req, res) => {
+  const currentUserId = req.user.userId;
+  const { from } = req.body;
+  if (!from) {
+    return res.status(400).json({ success: false, message: "Requesting username required" });
+  }
+  try {
+    const [rows] = await pool.query("SELECT userId FROM users WHERE username = ?", [from.toLowerCase()]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    const fromUserId = rows[0].userId;
+    // Update friend_requests to mark as accepted.
+    await pool.query(
+      "UPDATE friend_requests SET status = 'accepted' WHERE fromUserId = ? AND toUserId = ? AND status = 'pending'",
+      [fromUserId, currentUserId]
+    );
+    // Insert the friendship record (assuming one-directional storage).
+    await pool.query(
+      "INSERT INTO friends (userId, friendId) VALUES (?, ?)",
+      [currentUserId, fromUserId]
+    );
+    res.json({ success: true, message: "Friend request accepted" });
+  } catch (err) {
+    console.error("Error accepting friend request:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// POST /rejectFriendRequest - rejects a friend request from another user
+app.post('/rejectFriendRequest', verifyJWT, async (req, res) => {
+  const currentUserId = req.user.userId;
+  const { from } = req.body;
+  if (!from) {
+    return res.status(400).json({ success: false, message: "Requesting username required" });
+  }
+  try {
+    const [rows] = await pool.query("SELECT userId FROM users WHERE username = ?", [from.toLowerCase()]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    const fromUserId = rows[0].userId;
+    // Update friend_requests to mark as rejected.
+    await pool.query(
+      "UPDATE friend_requests SET status = 'rejected' WHERE fromUserId = ? AND toUserId = ? AND status = 'pending'",
+      [fromUserId, currentUserId]
+    );
+    res.json({ success: true, message: "Friend request rejected" });
+  } catch (err) {
+    console.error("Error rejecting friend request:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
@@ -269,8 +412,6 @@ wss.on('connection', (ws, request) => {
   const username = ws.user.username;
   const room = ws.room || { roomId: 'public', encryptionKey: null };
   
-  // ws.room = room;
-  // ws.username = username;
   clients.add(ws);
   
   if (!wsRooms.has(room.roomId)) {

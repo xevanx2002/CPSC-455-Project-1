@@ -2,54 +2,261 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Start a Chat</title>
+  <title>Friends & Chat</title>
   <link rel="stylesheet" href="styles3.css">
 </head>
 <body>
   <div class="container">
-    <h1>Start a Chat</h1>
-    <label for="targetUsername">Enter username to chat with:</label>
-    <input type="text" id="targetUsername" placeholder="Target username">
-    <button onclick="startChat()">Start Chat</button>
+    <h1>Friends</h1>
+    <!-- Friends List Section -->
+    <div id="friendList">
+      <ul id="friendsUl">
+        <!-- Friend items will be dynamically populated here -->
+      </ul>
+    </div>
+
+    <hr>
+    <!-- Add Friends Section -->
+    <h2>Add Friends</h2>
+    <label for="searchUser">Search Users:</label>
+    <input type="text" id="searchUser" placeholder="Enter username">
+    <button onclick="searchUsers()">Search</button>
+    <div id="searchResults">
+      <!-- Search results are shown here -->
+    </div>
+
+    <hr>
+    <!-- Friend Requests Section -->
+    <h2>Friend Requests</h2>
+    <div id="friendRequests">
+      <!-- Incoming friend requests will be shown here -->
+    </div>
   </div>
 
   <script>
-    async function startChat() {
-      const target = document.getElementById('targetUsername').value;
-      if (!target) {
-        alert("Please enter a username");
-        return;
-      }
-
-
-      const token = localStorage.getItem('jwt');
+    "use strict";
+    // Check for an authentication token in localStorage
+    function checkAuth() {
+      var token = localStorage.getItem('jwt');
       if (!token) {
         alert("Authentication token missing. Please log in.");
         window.location.href = '/';
-        return;
       }
+      return token;
+    }
 
-      try {
-        const response = await fetch('/createRoom', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ target })
-        });
-        const data = await response.json();
+    // Load the friend list from the server
+    function loadFriends() {
+      var token = checkAuth();
+      fetch('/getFriends', {
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(data) {
+        var ul = document.getElementById('friendsUl');
+        ul.innerHTML = '';
+        if (data.friends && data.friends.length) {
+          data.friends.forEach(function(friend) {
+            var li = document.createElement('li');
+            li.textContent = friend.username;
+            li.style.cursor = 'pointer';
+            // Clicking a friend opens the chat room with that friend
+            li.addEventListener('click', function() {
+              startChat(friend.username);
+            });
+            ul.appendChild(li);
+          });
+        } else {
+          ul.innerHTML = '<li>No friends added yet</li>';
+        }
+      })
+      .catch(function(err) {
+        console.error(err);
+        alert('Error fetching friends list.');
+      });
+    }
+
+    // Open a chat room with the target friend
+    function startChat(target) {
+      var token = checkAuth();
+      fetch('/createRoom', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ target: target })
+      })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(data) {
         if (data.success) {
-          // Redirect to chat.html with the room id as a query parameter.
-          window.location.href = `/chat.html?room=${data.roomId}`;
+          // Redirect to chat room with the room id in the query parameter
+          window.location.href = '/chat.html?room=' + data.roomId;
         } else {
           alert(data.message);
         }
-      } catch (err) {
+      })
+      .catch(function(err) {
         console.error(err);
-        alert("Error creating room");
-      }
+        alert("Error creating chat room.");
+      });
     }
+
+    // Search for users to add as friends
+    function searchUsers() {
+      var query = document.getElementById('searchUser').value;
+      if (!query) {
+        alert('Please enter a search query.');
+        return;
+      }
+      var token = checkAuth();
+      fetch('/searchUsers?query=' + encodeURIComponent(query), {
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(data) {
+        var resultsDiv = document.getElementById('searchResults');
+        resultsDiv.innerHTML = '';
+        if (data.users && data.users.length) {
+          data.users.forEach(function(user) {
+            var userDiv = document.createElement('div');
+            userDiv.textContent = user.username;
+            // Create a button for sending a friend request
+            var addButton = document.createElement('button');
+            addButton.textContent = 'Add Friend';
+            addButton.addEventListener('click', function() {
+              addFriend(user.username);
+            });
+            userDiv.appendChild(addButton);
+            resultsDiv.appendChild(userDiv);
+          });
+        } else {
+          resultsDiv.textContent = 'No users found';
+        }
+      })
+      .catch(function(err) {
+        console.error(err);
+        alert("Error searching users.");
+      });
+    }
+
+    // Send a friend request to a specified user
+    function addFriend(username) {
+      var token = checkAuth();
+      fetch('/sendFriendRequest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ username: username })
+      })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(data) {
+        if (data.success) {
+          alert('Friend request sent to ' + username + '.');
+        } else {
+          alert(data.message);
+        }
+      })
+      .catch(function(err) {
+        console.error(err);
+        alert("Error sending friend request.");
+      });
+    }
+
+    // Load incoming friend requests
+    function loadFriendRequests() {
+      var token = checkAuth();
+      fetch('/getFriendRequests', {
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(data) {
+        var reqDiv = document.getElementById('friendRequests');
+        reqDiv.innerHTML = '';
+        if (data.requests && data.requests.length) {
+          data.requests.forEach(function(req) {
+            var reqItem = document.createElement('div');
+            reqItem.textContent = req.from;
+            // Accept button for the friend request
+            var acceptBtn = document.createElement('button');
+            acceptBtn.textContent = 'Accept';
+            acceptBtn.addEventListener('click', function() {
+              respondFriendRequest(req.from, true);
+            });
+            // Reject button for the friend request
+            var rejectBtn = document.createElement('button');
+            rejectBtn.textContent = 'Reject';
+            rejectBtn.addEventListener('click', function() {
+              respondFriendRequest(req.from, false);
+            });
+            reqItem.appendChild(acceptBtn);
+            reqItem.appendChild(rejectBtn);
+            reqDiv.appendChild(reqItem);
+          });
+        } else {
+          reqDiv.textContent = 'No friend requests';
+        }
+      })
+      .catch(function(err) {
+        console.error(err);
+        alert("Error loading friend requests.");
+      });
+    }
+
+    // Accept or reject a friend request
+    function respondFriendRequest(fromUser, accepted) {
+      var token = checkAuth();
+      var endpoint = accepted ? '/acceptFriendRequest' : '/rejectFriendRequest';
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ from: fromUser })
+      })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(data) {
+        if (data.success) {
+          alert('Friend request ' + (accepted ? 'accepted' : 'rejected') + ' for ' + fromUser + '.');
+          // Refresh the friend list and requests list after processing the request.
+          loadFriends();
+          loadFriendRequests();
+        } else {
+          alert(data.message);
+        }
+      })
+      .catch(function(err) {
+        console.error(err);
+        alert("Error processing friend request.");
+      });
+    }
+
+    // Load data when the page is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      loadFriends();
+      loadFriendRequests();
+    });
   </script>
 </body>
 </html>
