@@ -31,7 +31,6 @@
         
         const data = await response.json();
         if (data.success && data.token) {
-          
           localStorage.setItem('jwt', data.token);
           window.location.href = data.redirect; 
         } else {
@@ -42,7 +41,9 @@
         alert("An error occurred. Please try again.");
       }
     }
-    
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+
     async function signup(event) {
       event.preventDefault();
       
@@ -54,12 +55,17 @@
         alert("Please fill out all fields for signup.");
         return;
       }
-      
+
       if (password !== confirmPassword) {
         alert("Passwords do not match.");
         return;
       }
-      
+
+      if (!passwordRegex.test(password)) {
+        alert("Password must be at least 8 characters and include uppercase, lowercase, number, and special character.");
+        return;
+      }
+
       try {
         const response = await fetch('/signup', { 
           method: 'POST',
