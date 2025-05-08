@@ -11,6 +11,13 @@ html, body {
   color: #d1d1d1; /* Light gray text */
 }
 
+.presence-status {
+  font-size: 0.9rem;
+  color: limegreen;
+  margin-top: 5px;
+}
+
+
 /* Chat container fills the entire viewport */
 .chat-container {
   display: flex;

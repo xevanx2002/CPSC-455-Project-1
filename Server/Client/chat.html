@@ -3,10 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Basic Implementation of Caesar Cipher</title>
+  
+  
   <!-- Make sure this references your updated Discord-like CSS -->
   <link rel="stylesheet" href="styles2.css">
 </head>
+
+<header>
+  <h1>Bridged Integrity and Confidentiallity Chat</h1>
+  <div id="presenceStatus" class="presence-status"></div>
+</header>
+
 <body>
   <div class="chat-container">
     <header>
@@ -56,6 +63,17 @@
       window.location.href = '/';
     }
 
+    function parseJwt(token) {
+      try {
+        return JSON.parse(atob(token.split('.')[1]));
+      } catch (e) {
+        return null;
+      }
+    }
+    const decoded = parseJwt(token);
+    const yourUsername = decoded?.username || 'anonymous';
+
+
     let socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}&room=${roomId}`);
     
     socket.onopen = function() {
@@ -63,8 +81,25 @@
     };
 
     socket.onmessage = function(event) {
-      displayMessage(event);
+      const data = JSON.parse(event.data);
+      switch (data.type) {
+        case 'message':
+        case 'file':
+          displayMessage(event);
+          break;
+        case 'presence':
+          handlePresence(data);
+          break;
+        case 'typing':
+          if (data.username !== yourUsername) showTyping(data.username);
+          break;
+        case 'stop_typing':
+          if (data.username !== yourUsername) clearTyping();
+          break;
+      }
     };
+
+
 
     function joinWeb() {
       if (socket && socket.readyState !== WebSocket.CLOSED) {
@@ -150,6 +185,22 @@
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
     };
+
+    function handlePresence(data) {
+      const presenceDiv = document.getElementById('presenceStatus');
+      presenceDiv.textContent = `${data.username} is ${data.status}`;
+      presenceDiv.style.color = data.status === 'online' ? 'limegreen' : 'gray';
+    }
+    function showTyping(username) {
+      const typingDiv = document.getElementById('typingIndicator');
+      typingDiv.textContent = `${username} is typing...`;
+    }
+
+    function clearTyping() {
+      const typingDiv = document.getElementById('typingIndicator');
+      typingDiv.textContent = '';
+    }
+
 
 
   </script>
