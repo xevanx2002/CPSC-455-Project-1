@@ -17,6 +17,14 @@ html, body {
   margin-top: 5px;
 }
 
+.typing-indicator {
+  font-style: italic;
+  font-size: 0.85rem;
+  color: #999;
+  margin: 0.5rem 0 0.5rem 1rem;
+}
+
+
 
 /* Chat container fills the entire viewport */
 .chat-container {
