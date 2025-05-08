@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import bodyParser from 'body-parser';
 import hashFun from './src/hash.js';
 import express from 'express';
-import https from 'https';
+//import https from 'https';
 import path from 'path';
 import fs from 'fs';
 import pool from './DB.js';
@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads');
-const IPAddress = 'ip goes here'; // Adjust as needed.
+const IPAddress = 'https://securechatproject.onrender.com'; // Adjust as needed.
 
 // JWT secret (replace with a secure, randomly generated value in production)
 const jwtSecret = 'myJWTSecret';
@@ -389,7 +389,7 @@ wss.on('connection', (ws, request) => {
       const filePath = path.join(uploadDir, newFileName);
       fs.writeFileSync(filePath, newData);
       console.log(`File saved to ${filePath}`);
-      const fileURL = `https://${IPAddress}:8080/uploads/${newFileName}`;
+      const fileURL = `${IPAddress}/uploads/${newFileName}`;
       const fileData = {
         type: 'file',
         fileName: newFileName,
