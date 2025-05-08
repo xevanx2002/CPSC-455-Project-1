@@ -261,7 +261,6 @@ const beat = setInterval(function ping() {
 }, 30000);
 
 function broadcastPresence(status, username, roomId) {
-
   const payload = {
     type: 'presence',
     status,
@@ -272,7 +271,10 @@ function broadcastPresence(status, username, roomId) {
   if (roomClients) {
     roomClients.forEach(client => {
       if (client.readyState === client.OPEN) {
-        client.send(JSON.stringify(payload));
+        // Skip notifying self, if desired
+        if (client.user?.username !== username) {
+          client.send(JSON.stringify(payload));
+        }
       }
     });
   }
@@ -280,7 +282,7 @@ function broadcastPresence(status, username, roomId) {
 
 
 wss.on('connection', (ws, request) => {
-  broadcastPresence('online', ws.user.userId, ws.room.roomId);
+  
   console.log("Connection event received, ws.user:", ws.user);
   
   // WebSocket connections now rely on JWT, so request.user is set in upgrade.
@@ -304,7 +306,7 @@ wss.on('connection', (ws, request) => {
   
   ws.connected = true;
   console.log(`WebSocket connected: user ${username} in room ${room.roomId}`);
-  
+  broadcastPresence('online', username, room.roomId);
   // Load chat history for the room.
   (async () => {
     try {
@@ -352,6 +354,23 @@ wss.on('connection', (ws, request) => {
       jsonCheck = true;
     } catch (err) {
       console.log("Message is not valid JSON:", err);
+    }
+    
+    if (jsonCheck && (parsed.type === 'typing' || parsed.type === 'stop_typing')) {
+      const typingPayload = {
+        type: parsed.type,
+        username: ws.user.username
+      };
+    
+      const roomClients = wsRooms.get(ws.room.roomId);
+      if (roomClients) {
+        roomClients.forEach(client => {
+          if (client !== ws && client.readyState === client.OPEN) {
+            client.send(JSON.stringify(typingPayload));
+          }
+        });
+      }
+      return;
     }
     
     if (jsonCheck && parsed.type === 'file') {
@@ -435,7 +454,7 @@ wss.on('connection', (ws, request) => {
   });
   
   ws.on('close', () => {
-    broadcastPresence('offline', ws.user.username, ws.room.roomId);
+    
     console.log(`${username} disconnected from room ${room.roomId}`);
     clients.delete(ws);
     if (wsRooms.has(room.roomId)) {
@@ -444,6 +463,7 @@ wss.on('connection', (ws, request) => {
         wsRooms.delete(room.roomId);
       }
     }
+    broadcastPresence('offline', ws.user.username, ws.room.roomId);
   });
 });
 

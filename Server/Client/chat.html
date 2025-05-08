@@ -203,7 +203,26 @@
       typingDiv.textContent = '';
     }
 
+    let typingTimeout;
 
+input.addEventListener('input', () => {
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: 'typing',
+      username: yourUsername
+    }));
+  }
+
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'stop_typing',
+        username: yourUsername
+      }));
+    }
+  }, 1500); // 1.5 seconds after the last keystroke
+});
 
   </script>
 </body>
