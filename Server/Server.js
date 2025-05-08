@@ -206,6 +206,10 @@ app.post('/createRoom', verifyJWT, async (req, res) => {
   }
 });
 
+
+
+
+
 /* --------- Encryption Functions --------- */
 const algorithm = 'aes-256-cbc';
 function encryptMessage(text, key) {
@@ -256,7 +260,27 @@ const beat = setInterval(function ping() {
   });
 }, 30000);
 
+function broadcastPresence(status, username, roomId) {
+
+  const payload = {
+    type: 'presence',
+    status,
+    username
+  };
+
+  const roomClients = wsRooms.get(roomId);
+  if (roomClients) {
+    roomClients.forEach(client => {
+      if (client.readyState === client.OPEN) {
+        client.send(JSON.stringify(payload));
+      }
+    });
+  }
+}
+
+
 wss.on('connection', (ws, request) => {
+  broadcastPresence('online', ws.user.userId, ws.room.roomId);
   console.log("Connection event received, ws.user:", ws.user);
   
   // WebSocket connections now rely on JWT, so request.user is set in upgrade.
@@ -360,6 +384,8 @@ wss.on('connection', (ws, request) => {
           client.send(JSON.stringify(fileData));
         }
       });
+
+      
       
       try {
         await pool.query(
@@ -409,6 +435,7 @@ wss.on('connection', (ws, request) => {
   });
   
   ws.on('close', () => {
+    broadcastPresence('offline', ws.user.username, ws.room.roomId);
     console.log(`${username} disconnected from room ${room.roomId}`);
     clients.delete(ws);
     if (wsRooms.has(room.roomId)) {
@@ -479,3 +506,6 @@ server.on('upgrade', function upgrade(request, socket, head) {
       });
   });
 });
+
+
+
